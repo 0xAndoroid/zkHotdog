@@ -16,6 +16,17 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
     private var endPoint: SCNNode?
     private var lineNode: SCNNode?
     private var measurementLabel: UILabel!
+    private var centerReticle: UIImageView!
+    private var addPointButton: UIButton!
+    private var measurementState: MeasurementState = .ready
+    
+    // Enum to track the current state of measurement
+    private enum MeasurementState {
+        case ready
+        case measuringStart
+        case measuringEnd
+        case complete
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -29,9 +40,32 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
         sceneView.autoenablesDefaultLighting = true
         view.addSubview(sceneView)
         
-        // Add tap gesture
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-        sceneView.addGestureRecognizer(tapGesture)
+        // Setup center reticle
+        centerReticle = UIImageView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+        centerReticle.center = view.center
+        centerReticle.contentMode = .scaleAspectFit
+        
+        // Create a simple crosshair programmatically
+        UIGraphicsBeginImageContextWithOptions(CGSize(width: 50, height: 50), false, 0)
+        let context = UIGraphicsGetCurrentContext()!
+        context.setStrokeColor(UIColor.white.cgColor)
+        context.setLineWidth(2.0)
+        
+        // Draw crosshair
+        context.move(to: CGPoint(x: 25, y: 15))
+        context.addLine(to: CGPoint(x: 25, y: 35))
+        context.move(to: CGPoint(x: 15, y: 25))
+        context.addLine(to: CGPoint(x: 35, y: 25))
+        
+        // Draw circle
+        context.addEllipse(in: CGRect(x: 20, y: 20, width: 10, height: 10))
+        
+        context.strokePath()
+        let crosshairImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        centerReticle.image = crosshairImage
+        view.addSubview(centerReticle)
         
         // Setup measurement label
         measurementLabel = UILabel()
@@ -39,8 +73,18 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
         measurementLabel.textAlignment = .center
         measurementLabel.textColor = .white
         measurementLabel.backgroundColor = UIColor.black.withAlphaComponent(0.5)
-        measurementLabel.text = "Tap to set start point"
+        measurementLabel.text = "Position the reticle and tap 'Add Point'"
         view.addSubview(measurementLabel)
+        
+        // Add point button
+        addPointButton = UIButton(type: .system)
+        addPointButton.setTitle("Add Point", for: .normal)
+        addPointButton.frame = CGRect(x: (view.bounds.width - 120) / 2, y: view.bounds.height - 100, width: 120, height: 50)
+        addPointButton.backgroundColor = UIColor.systemYellow
+        addPointButton.setTitleColor(.black, for: .normal)
+        addPointButton.layer.cornerRadius = 10
+        addPointButton.addTarget(self, action: #selector(addPoint), for: .touchUpInside)
+        view.addSubview(addPointButton)
         
         // Add reset button
         let resetButton = UIButton(type: .system)
@@ -91,25 +135,37 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
         sceneView.session.pause()
     }
     
-    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-        let location = gesture.location(in: sceneView)
+    @objc func addPoint() {
+        // Get the center point of the screen
+        let screenCenter = CGPoint(x: sceneView.bounds.midX, y: sceneView.bounds.midY)
         
-        // Perform hit test to find real-world position
-        guard let query = sceneView.raycastQuery(from: location, 
+        // Perform hit test from the center of the screen
+        guard let query = sceneView.raycastQuery(from: screenCenter, 
                                                allowing: .estimatedPlane, 
                                                alignment: .any) else { return }
         
-        guard let result = sceneView.session.raycast(query).first else { return }
+        guard let result = sceneView.session.raycast(query).first else { 
+            // Provide feedback if no surface is detected
+            measurementLabel.text = "No surface detected. Try again."
+            return 
+        }
         
         let hitPosition = result.worldTransform.columns.3
         let hitPoint = SCNVector3(hitPosition.x, hitPosition.y, hitPosition.z)
         
-        if startPoint == nil {
+        switch measurementState {
+        case .ready, .measuringStart:
             // Create start point
+            startPoint?.removeFromParentNode() // Remove existing start point if any
             startPoint = createSphereNode(at: hitPoint, color: .red)
             sceneView.scene.rootNode.addChildNode(startPoint!)
-            measurementLabel.text = "Tap to set end point"
-        } else if endPoint == nil {
+            measurementLabel.text = "Move to end point and tap 'Add Point'"
+            measurementState = .measuringEnd
+            
+            // Update button title
+            addPointButton.setTitle("Add End Point", for: .normal)
+            
+        case .measuringEnd:
             // Create end point
             endPoint = createSphereNode(at: hitPoint, color: .red)
             sceneView.scene.rootNode.addChildNode(endPoint!)
@@ -120,6 +176,61 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
             // Calculate and display distance
             let distance = calculateDistance()
             measurementLabel.text = String(format: "Distance: %.2f cm", distance * 100)
+            measurementState = .complete
+            
+            // Update button title
+            addPointButton.setTitle("Update Measurement", for: .normal)
+            
+        case .complete:
+            // Reset for a new measurement
+            resetMeasurement()
+            
+            // Then add the new start point
+            startPoint = createSphereNode(at: hitPoint, color: .red)
+            sceneView.scene.rootNode.addChildNode(startPoint!)
+            measurementLabel.text = "Move to end point and tap 'Add Point'"
+            measurementState = .measuringEnd
+            
+            // Update button title
+            addPointButton.setTitle("Add End Point", for: .normal)
+        }
+    }
+    
+    // This function will continuously update a preview of the measurement
+    func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        DispatchQueue.main.async {
+            // Only show preview line when we have a start point but not an end point
+            if self.measurementState == .measuringEnd, let startPoint = self.startPoint {
+                // Get the center point of the screen
+                let screenCenter = CGPoint(x: self.sceneView.bounds.midX, y: self.sceneView.bounds.midY)
+                
+                // Perform hit test from the center of the screen
+                guard let query = self.sceneView.raycastQuery(from: screenCenter, 
+                                                           allowing: .estimatedPlane, 
+                                                           alignment: .any) else { return }
+                
+                guard let result = self.sceneView.session.raycast(query).first else { return }
+                
+                let hitPosition = result.worldTransform.columns.3
+                let hitPoint = SCNVector3(hitPosition.x, hitPosition.y, hitPosition.z)
+                
+                // Remove existing preview line
+                self.lineNode?.removeFromParentNode()
+                
+                // Create a preview line
+                let lineGeometry = SCNGeometry.lineFrom(vector: startPoint.position, to: hitPoint)
+                self.lineNode = SCNNode(geometry: lineGeometry)
+                self.sceneView.scene.rootNode.addChildNode(self.lineNode!)
+                
+                // Calculate and display current distance
+                let distance = sqrt(
+                    pow(hitPoint.x - startPoint.position.x, 2) +
+                    pow(hitPoint.y - startPoint.position.y, 2) +
+                    pow(hitPoint.z - startPoint.position.z, 2)
+                )
+                
+                self.measurementLabel.text = String(format: "Current: %.2f cm", distance * 100)
+            }
         }
     }
     
@@ -166,14 +277,18 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
         endPoint = nil
         lineNode = nil
         
-        // Reset label
-        measurementLabel.text = "Tap to set start point"
+        // Reset state
+        measurementState = .ready
+        
+        // Reset UI
+        measurementLabel.text = "Position the reticle and tap 'Add Point'"
+        addPointButton.setTitle("Add Point", for: .normal)
     }
     
     @objc func captureImage() {
         // Only capture if we have a complete measurement
-        guard startPoint != nil, endPoint != nil else {
-            measurementLabel.text = "Set both points before capturing"
+        guard measurementState == .complete, startPoint != nil, endPoint != nil else {
+            measurementLabel.text = "Complete measurement before capturing"
             return
         }
         

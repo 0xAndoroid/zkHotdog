@@ -296,13 +296,15 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
     
     @objc func captureImage() {
         // Only capture if we have a complete measurement
-        guard measurementState == .complete, startPoint != nil, endPoint != nil else {
+        guard measurementState == .complete, 
+              let startPointPos = startPoint?.position, 
+              let endPointPos = endPoint?.position else {
             measurementLabel.text = "Complete measurement before capturing"
             return
         }
         
-        // Show saving indicator
-        measurementLabel.text = "Capturing image..."
+        // Show loading indicator
+        measurementLabel.text = "Processing measurement..."
         
         // Use a delay to ensure UI updates before capture
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -313,12 +315,30 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
             if let image = UIGraphicsGetImageFromCurrentImageContext() {
                 UIGraphicsEndImageContext()
                 
-                // Save image to photo library
-                UIImageWriteToSavedPhotosAlbum(
-                    image, 
-                    self, 
-                    #selector(self.imageSaved(_:didFinishSavingWithError:contextInfo:)), 
-                    nil
+                // Convert image to data
+                guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+                    self.measurementLabel.text = "Failed to process image"
+                    return
+                }
+                
+                // Prepare point coordinates
+                let startCoordinates = [
+                    "x": startPointPos.x,
+                    "y": startPointPos.y,
+                    "z": startPointPos.z
+                ]
+                
+                let endCoordinates = [
+                    "x": endPointPos.x,
+                    "y": endPointPos.y,
+                    "z": endPointPos.z
+                ]
+                
+                // Send data to server
+                self.sendMeasurementToServer(
+                    imageData: imageData,
+                    startPoint: startCoordinates,
+                    endPoint: endCoordinates
                 )
             } else {
                 UIGraphicsEndImageContext()
@@ -327,12 +347,94 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
         }
     }
     
-    @objc func imageSaved(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeRawPointer) {
-        if let error = error {
-            measurementLabel.text = "Error saving: \(error.localizedDescription)"
-        } else {
-            measurementLabel.text = "Image saved with measurement"
+    private func sendMeasurementToServer(imageData: Data, startPoint: [String: Float], endPoint: [String: Float]) {
+        // Server URL - replace with your actual server endpoint
+        guard let url = URL(string: "https://your-server-endpoint.com/measurements") else {
+            self.measurementLabel.text = "Invalid server URL"
+            return
         }
+        
+        // Create multipart request
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        var body = Data()
+        
+        // Add image data
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"image\"; filename=\"measurement.jpg\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add start point data
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"startPoint\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: application/json\r\n\r\n".data(using: .utf8)!)
+        
+        if let startPointData = try? JSONSerialization.data(withJSONObject: startPoint) {
+            body.append(startPointData)
+        }
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Add end point data
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"endPoint\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: application/json\r\n\r\n".data(using: .utf8)!)
+        
+        if let endPointData = try? JSONSerialization.data(withJSONObject: endPoint) {
+            body.append(endPointData)
+        }
+        body.append("\r\n".data(using: .utf8)!)
+        
+        // Close the boundary
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        
+        // Create task
+        let task = URLSession.shared.dataTask(with: request) { [weak self] (data, response, error) in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                if let error = error {
+                    self.measurementLabel.text = "Error: \(error.localizedDescription)"
+                    return
+                }
+                
+                guard let data = data else {
+                    self.measurementLabel.text = "No data received from server"
+                    return
+                }
+                
+                do {
+                    // Parse the response to get the URL
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let urlString = json["url"] as? String,
+                       let redirectURL = URL(string: urlString) {
+                        
+                        // Redirect to the URL
+                        self.measurementLabel.text = "Redirecting to results..."
+                        
+                        // Open the URL in Safari
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            UIApplication.shared.open(redirectURL, options: [:], completionHandler: nil)
+                        }
+                    } else {
+                        self.measurementLabel.text = "Invalid response from server"
+                    }
+                } catch {
+                    self.measurementLabel.text = "Failed to parse server response"
+                }
+            }
+        }
+        
+        // Start the task
+        task.resume()
+        measurementLabel.text = "Sending data to server..."
     }
 }
 

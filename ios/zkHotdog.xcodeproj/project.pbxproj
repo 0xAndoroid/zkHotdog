@@ -48,16 +48,6 @@
 			path = zkHotdog;
 			sourceTree = "<group>";
 		};
-		BD9D2D6A2D6D152900C8A07F /* zkHotdogTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = zkHotdogTests;
-			sourceTree = "<group>";
-		};
-		BD9D2D742D6D152900C8A07F /* zkHotdogUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = zkHotdogUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,8 +79,6 @@
 			isa = PBXGroup;
 			children = (
 				BD9D2D572D6D152700C8A07F /* zkHotdog */,
-				BD9D2D6A2D6D152900C8A07F /* zkHotdogTests */,
-				BD9D2D742D6D152900C8A07F /* zkHotdogUITests */,
 				BD9D2D562D6D152700C8A07F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -143,9 +131,6 @@
 			dependencies = (
 				BD9D2D692D6D152900C8A07F /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				BD9D2D6A2D6D152900C8A07F /* zkHotdogTests */,
-			);
 			name = zkHotdogTests;
 			packageProductDependencies = (
 			);
@@ -165,9 +150,6 @@
 			);
 			dependencies = (
 				BD9D2D732D6D152900C8A07F /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				BD9D2D742D6D152900C8A07F /* zkHotdogUITests */,
 			);
 			name = zkHotdogUITests;
 			packageProductDependencies = (

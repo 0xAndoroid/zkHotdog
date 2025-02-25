@@ -29,9 +29,22 @@
 		BD9D2D712D6D152900C8A07F /* zkHotdogUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zkHotdogUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BD9D2DC42D6D6C4000C8A07F /* Exceptions for "zkHotdog" folder in "zkHotdog" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BD9D2D542D6D152700C8A07F /* zkHotdog */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BD9D2D572D6D152700C8A07F /* zkHotdog */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BD9D2DC42D6D6C4000C8A07F /* Exceptions for "zkHotdog" folder in "zkHotdog" target */,
+			);
 			path = zkHotdog;
 			sourceTree = "<group>";
 		};
@@ -396,7 +409,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WTM4H68775;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = zkHotdog/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access for AR measurements";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app needs photo library access to store images";
@@ -426,7 +439,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WTM4H68775;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = zkHotdog/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs camera access for AR measurements";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app needs photo library access to store images";

@@ -5,7 +5,6 @@
 //  Created by Andrew Tretyakov on 2025-02-24.
 //
 
-
 import UIKit
 import ARKit
 import SceneKit
@@ -28,14 +27,24 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
         case complete
     }
     
+    // Hide status bar for fullscreen
+    override var prefersStatusBarHidden: Bool {
+        return true
+    }
+    
+    // Hide home indicator on newer devices
+    override var prefersHomeIndicatorAutoHidden: Bool {
+        return true
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
     }
     
     private func setupUI() {
-        // Setup AR scene view
-        sceneView = ARSCNView(frame: view.bounds)
+        // Setup AR scene view with full screen bounds
+        sceneView = ARSCNView(frame: UIScreen.main.bounds)
         sceneView.delegate = self
         sceneView.autoenablesDefaultLighting = true
         view.addSubview(sceneView)
@@ -292,15 +301,29 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
             return
         }
         
-        // Take screenshot of current ARView
-        UIGraphicsBeginImageContextWithOptions(sceneView.bounds.size, false, UIScreen.main.scale)
-        sceneView.drawHierarchy(in: sceneView.bounds, afterScreenUpdates: true)
-        let image = UIGraphicsGetImageFromCurrentImageContext()
-        UIGraphicsEndImageContext()
+        // Show saving indicator
+        measurementLabel.text = "Capturing image..."
         
-        // Save image to photo library
-        if let image = image {
-            UIImageWriteToSavedPhotosAlbum(image, self, #selector(imageSaved(_:didFinishSavingWithError:contextInfo:)), nil)
+        // Use a delay to ensure UI updates before capture
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // Take screenshot of current ARView
+            UIGraphicsBeginImageContextWithOptions(self.sceneView.bounds.size, false, UIScreen.main.scale)
+            self.sceneView.drawHierarchy(in: self.sceneView.bounds, afterScreenUpdates: true)
+            
+            if let image = UIGraphicsGetImageFromCurrentImageContext() {
+                UIGraphicsEndImageContext()
+                
+                // Save image to photo library
+                UIImageWriteToSavedPhotosAlbum(
+                    image, 
+                    self, 
+                    #selector(self.imageSaved(_:didFinishSavingWithError:contextInfo:)), 
+                    nil
+                )
+            } else {
+                UIGraphicsEndImageContext()
+                self.measurementLabel.text = "Failed to capture image"
+            }
         }
     }
     

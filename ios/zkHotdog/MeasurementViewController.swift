@@ -348,8 +348,8 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
     }
     
     private func sendMeasurementToServer(imageData: Data, startPoint: [String: Float], endPoint: [String: Float]) {
-        // Server URL - replace with your actual server endpoint
-        guard let url = URL(string: "https://your-server-endpoint.com/measurements") else {
+        // Server URL pointing to our Rust Axum server
+        guard let url = URL(string: "http://localhost:3000/measurements") else {
             self.measurementLabel.text = "Invalid server URL"
             return
         }

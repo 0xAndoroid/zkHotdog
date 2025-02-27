@@ -1,13 +1,15 @@
 # zkHotdog Backend
 
-This project implements a backend server for the zkHotdog application, which verifies hotdog measurements using zero-knowledge proofs.
+This project implements a backend server for the zkHotdog application, which verifies hotdog measurements using zero-knowledge proofs and submits them to the zkVerify network for verification.
 
 ## Setup
 
-1. Make sure you have Node.js and Rust installed
+1. Make sure you have Node.js v20+ and Rust installed
 2. Install required Node packages:
    ```
    npm install -g snarkjs
+   npm install  # Install TypeScript client dependencies
+   npm run build  # Build the TypeScript verification client
    ```
 3. Install ImageMagick for the test scripts (to generate test images):
    ```
@@ -20,6 +22,11 @@ This project implements a backend server for the zkHotdog application, which ver
 4. Build the Rust backend:
    ```
    cargo build
+   ```
+   
+5. Configure the zkVerify network integration by setting environment variables:
+   ```
+   export ZK_VERIFY_SEED_PHRASE="your twelve word seed phrase here"
    ```
 
 ## Circuit Setup
@@ -75,4 +82,26 @@ To run the test scripts:
   - Returns a measurement ID and status URL
 
 - `GET /status/:id` - Check the status of a measurement
-  - Returns the current status of the proof generation
+  - Returns the current status of the proof generation and verification
+  - Status values include:
+    - `Pending`: Measurement received, not yet processed
+    - `Processing`: Proof is being generated or verified on zkVerify network
+    - `Completed`: Proof has been successfully verified on zkVerify network
+    - `Failed`: Proof generation or verification failed
+
+## zkVerify Network Integration
+
+The backend integrates with the zkVerify network to submit and verify the generated zero-knowledge proofs. After a proof is generated, it is automatically submitted to the zkVerify network using the TypeScript client in `src/verify_client.ts`.
+
+This process involves:
+
+1. Generating the ZK proof locally using Circom/snarkjs
+2. Submitting the proof to the zkVerify network using the zkverifyjs library
+3. Monitoring the status of the verification on the blockchain
+4. Updating the measurement status based on the verification result
+
+The TypeScript client supports:
+- Sending proofs to the zkVerify network
+- Listening for transaction events 
+- Waiting for transaction finalization
+- Receiving attestation confirmations

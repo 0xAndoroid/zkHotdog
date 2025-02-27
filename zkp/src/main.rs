@@ -204,12 +204,41 @@ async fn start_proof_process(state: Arc<AppState>, id: String) {
     {
         let mut measurements = state.measurements.lock().unwrap();
         if let Some(m) = measurements.get_mut(&id) {
-            m.status = if result.is_ok() {
-                ProofStatus::Completed
+            if result.is_ok() {
+                // Proof was generated successfully, now submit for verification
+                m.status = ProofStatus::Processing;
+                
+                // Call the TypeScript verification client in a separate thread
+                let id_clone = id.clone();
+                tokio::spawn(async move {
+                    println!("Submitting proof {} to zkVerify network...", id_clone);
+                    
+                    // Run the TypeScript client using Node.js
+                    let verify_result = tokio::process::Command::new("node")
+                        .args(["dist/verify_client.js", &id_clone])
+                        .current_dir(".")  // Run from the current directory
+                        .status()
+                        .await;
+                    
+                    // Update status based on verification result
+                    let mut measurements = state.measurements.lock().unwrap();
+                    if let Some(m) = measurements.get_mut(&id_clone) {
+                        m.status = match verify_result {
+                            Ok(status) if status.success() => {
+                                println!("Proof {} verified successfully on zkVerify network", id_clone);
+                                ProofStatus::Completed
+                            },
+                            _ => {
+                                println!("Proof {} verification failed on zkVerify network", id_clone);
+                                ProofStatus::Failed
+                            }
+                        };
+                    }
+                });
             } else {
                 println!("Proof generation failed: {:?}", result.err());
-                ProofStatus::Failed
-            };
+                m.status = ProofStatus::Failed;
+            }
         }
     }
 }

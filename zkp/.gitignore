@@ -5,6 +5,7 @@ package-lock.json
 # Build artifacts
 target/
 circuit-compiled/
+dist/
 
 # Keys and proofs (can be regenerated)
 keys/

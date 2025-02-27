@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Rust
+target/
+**/*.rs.bk
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Data directories
+uploads/*
+proofs/*
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.rlib
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Misc
+.DS_Store
+Thumbs.db

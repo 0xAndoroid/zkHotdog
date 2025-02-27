@@ -8,10 +8,10 @@
     "verify": "node dist/verify_client.js"
   },
   "dependencies": {
-    "zkverifyjs": "^0.1.0"
+    "zkverifyjs": "^0.6.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^22.17.19",
     "typescript": "^5.0.0"
   }
 }

@@ -1,10 +1,10 @@
 use axum::{
     Router,
     body::Bytes,
-    extract::{Multipart, State},
-    http::StatusCode,
-    response::Json,
-    routing::post,
+    extract::{Multipart, Path, State},
+    http::{StatusCode, header},
+    response::{IntoResponse, Json},
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -72,7 +72,8 @@ async fn main() {
     // Build our application with routes
     let app = Router::new()
         .route("/measurements", post(handle_measurement))
-        .route("/status/{id}", axum::routing::get(check_proof_status))
+        .route("/status/{id}", get(check_proof_status))
+        .route("/img/{id}", get(serve_image))
         .with_state(app_state);
 
     // Run the server
@@ -201,44 +202,50 @@ async fn start_proof_process(state: Arc<AppState>, id: String) {
     let result = generate_snarkjs_proof(&id, &measurement).await;
 
     // Update status based on result
-    {
-        let mut measurements = state.measurements.lock().unwrap();
-        if let Some(m) = measurements.get_mut(&id) {
-            if result.is_ok() {
+    if result.is_ok() {
+        // Update status to Processing in a separate scope to release the lock
+        {
+            let mut measurements = state.measurements.lock().unwrap();
+            if let Some(m) = measurements.get_mut(&id) {
                 // Proof was generated successfully, now submit for verification
                 m.status = ProofStatus::Processing;
-                
-                // Call the TypeScript verification client in a separate thread
-                let id_clone = id.clone();
-                tokio::spawn(async move {
-                    println!("Submitting proof {} to zkVerify network...", id_clone);
-                    
-                    // Run the TypeScript client using Node.js
-                    let verify_result = tokio::process::Command::new("node")
-                        .args(["dist/verify_client.js", &id_clone])
-                        .current_dir(".")  // Run from the current directory
-                        .status()
-                        .await;
-                    
-                    // Update status based on verification result
-                    let mut measurements = state.measurements.lock().unwrap();
-                    if let Some(m) = measurements.get_mut(&id_clone) {
-                        m.status = match verify_result {
-                            Ok(status) if status.success() => {
-                                println!("Proof {} verified successfully on zkVerify network", id_clone);
-                                ProofStatus::Completed
-                            },
-                            _ => {
-                                println!("Proof {} verification failed on zkVerify network", id_clone);
-                                ProofStatus::Failed
-                            }
-                        };
-                    }
-                });
-            } else {
-                println!("Proof generation failed: {:?}", result.err());
-                m.status = ProofStatus::Failed;
             }
+        } // Lock is released here
+
+        // Now we can safely spawn a new task with a cloned state
+        let state_clone = state.clone();
+        let id_clone = id.clone();
+        tokio::spawn(async move {
+            println!("Submitting proof {} to zkVerify network...", id_clone);
+
+            // Run the TypeScript client using Node.js
+            let verify_result = tokio::process::Command::new("node")
+                .args(["dist/verify_client.js", &id_clone])
+                .current_dir(".") // Run from the current directory
+                .status()
+                .await;
+
+            // Update status based on verification result
+            let mut measurements = state_clone.measurements.lock().unwrap();
+            if let Some(m) = measurements.get_mut(&id_clone) {
+                m.status = match verify_result {
+                    Ok(status) if status.success() => {
+                        println!("Proof {} verified successfully on zkVerify network", id_clone);
+                        ProofStatus::Completed
+                    }
+                    _ => {
+                        println!("Proof {} verification failed on zkVerify network", id_clone);
+                        ProofStatus::Failed
+                    }
+                };
+            }
+        });
+    } else {
+        // In case of error, update status to Failed
+        let mut measurements = state.measurements.lock().unwrap();
+        if let Some(m) = measurements.get_mut(&id) {
+            println!("Proof generation failed: {:?}", result.err());
+            m.status = ProofStatus::Failed;
         }
     }
 }
@@ -254,14 +261,14 @@ async fn generate_snarkjs_proof(id: &str, measurement: &Measurement) -> Result<(
 
     // Create input file for snarkjs
     let input_path = format!("{}/input.json", proof_dir);
-    
+
     // Calculate the distance based on the coordinates
     let dx = measurement.end_point.x - measurement.start_point.x;
     let dy = measurement.end_point.y - measurement.start_point.y;
     let dz = measurement.end_point.z - measurement.start_point.z;
     // Round to the nearest integer to ensure it's compatible with the circuit
     let distance_mm = (dx * dx + dy * dy + dz * dz).sqrt().round() as u32;
-    
+
     let input_json = serde_json::json!({
         "point1": [
             measurement.start_point.x,
@@ -299,7 +306,7 @@ async fn generate_snarkjs_proof(id: &str, measurement: &Measurement) -> Result<(
             "circuit-compiled/zkHotdog_js/generate_witness.js",
             circuit_wasm,
             &input_path,
-            &witness_path
+            &witness_path,
         ])
         .status()
         .await
@@ -319,7 +326,7 @@ async fn generate_snarkjs_proof(id: &str, measurement: &Measurement) -> Result<(
             proving_key,
             &witness_path,
             &proof_path,
-            &public_path
+            &public_path,
         ])
         .status()
         .await
@@ -336,7 +343,7 @@ async fn generate_snarkjs_proof(id: &str, measurement: &Measurement) -> Result<(
 // Handler to check proof status
 async fn check_proof_status(
     State(state): State<Arc<AppState>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
+    Path(id): Path<String>,
 ) -> Result<Json<Measurement>, (StatusCode, String)> {
     let measurements = state.measurements.lock().unwrap();
 
@@ -345,4 +352,31 @@ async fn check_proof_status(
     } else {
         Err((StatusCode::NOT_FOUND, format!("Measurement with ID {} not found", id)))
     }
+}
+
+// Handler to serve image files
+async fn serve_image(Path(id): Path<String>) -> Result<impl IntoResponse, (StatusCode, String)> {
+    // Construct path to the image file
+    let file_path = format!("uploads/{}.jpg", id);
+
+    // Check if the file exists
+    if !std::path::Path::new(&file_path).exists() {
+        return Err((StatusCode::NOT_FOUND, format!("Image with ID {} not found", id)));
+    }
+
+    // Read the file
+    let image_data = match fs::read(&file_path) {
+        Ok(data) => data,
+        Err(e) => {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read image: {}", e)));
+        }
+    };
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, "image/jpeg".to_string()),
+            (header::CONTENT_DISPOSITION, format!("inline; filename=\"{}.jpg\"", id)),
+        ],
+        image_data,
+    ))
 }

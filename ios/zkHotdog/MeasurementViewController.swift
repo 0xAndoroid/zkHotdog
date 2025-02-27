@@ -411,17 +411,24 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
                 }
                 
                 do {
-                    // Parse the response to get the URL
+                    // Parse the response to get the measurement ID
                     if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let urlString = json["url"] as? String,
-                       let redirectURL = URL(string: urlString) {
+                       let measurementId = json["measurement_id"] as? String {
                         
-                        // Redirect to the URL
-                        self.measurementLabel.text = "Redirecting to results..."
+                        // Create the frontend URL with the measurement ID
+                        // Use your actual frontend URL here
+                        let frontendUrl = "http://localhost:3001/\(measurementId)"
                         
-                        // Open the URL in Safari
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            UIApplication.shared.open(redirectURL, options: [:], completionHandler: nil)
+                        if let redirectURL = URL(string: frontendUrl) {
+                            // Show success message with the URL
+                            self.measurementLabel.text = "Measurement sent! Redirecting to proof status..."
+                            
+                            // Open the URL in Safari
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                UIApplication.shared.open(redirectURL, options: [:], completionHandler: nil)
+                            }
+                        } else {
+                            self.measurementLabel.text = "Invalid frontend URL"
                         }
                     } else {
                         self.measurementLabel.text = "Invalid response from server"

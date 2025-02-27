@@ -41,7 +41,7 @@ echo -e "${GREEN}Got measurement ID: $MEASUREMENT_ID${NC}"
 
 # Test 3: Check status until proof is completed or failed
 echo -e "${GREEN}Checking proof status...${NC}"
-MAX_ATTEMPTS=30
+MAX_ATTEMPTS=50
 CURRENT_ATTEMPT=0
 STATUS="Pending"
 

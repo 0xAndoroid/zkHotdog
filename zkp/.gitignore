@@ -1,0 +1,36 @@
+# Node.js dependencies
+node_modules/
+package-lock.json
+
+# Build artifacts
+target/
+circuit-compiled/
+
+# Keys and proofs (can be regenerated)
+keys/
+proofs/
+ptau/
+
+# Uploaded images
+uploads/
+
+# Test data
+test_data/
+
+# Editor and OS specific files
+.DS_Store
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp

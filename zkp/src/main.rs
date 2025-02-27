@@ -60,6 +60,10 @@ async fn main() {
         println!("Failed to create uploads directory or it already exists");
     });
 
+    fs::create_dir_all("proofs").unwrap_or_else(|_| {
+        println!("Failed to create proofs directory or it already exists");
+    });
+
     // Create shared application state
     let app_state = Arc::new(AppState {
         measurements: Mutex::new(HashMap::new()),
@@ -68,14 +72,14 @@ async fn main() {
     // Build our application with routes
     let app = Router::new()
         .route("/measurements", post(handle_measurement))
-        .route("/status/:id", post(check_proof_status))
+        .route("/status/{id}", axum::routing::get(check_proof_status))
         .with_state(app_state);
 
     // Run the server
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Server listening on {}", addr);
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
 
 // Handler for receiving measurement data
@@ -172,40 +176,131 @@ fn save_file(path: &str, data: &[u8]) -> std::io::Result<()> {
 
 // Background task to start the proof process
 async fn start_proof_process(state: Arc<AppState>, id: String) {
+    // Get a clone of the measurement before locking for update
+    let measurement = {
+        let measurements = state.measurements.lock().unwrap();
+        if let Some(m) = measurements.get(&id) {
+            m.clone()
+        } else {
+            println!("Measurement not found: {}", id);
+            return;
+        }
+    };
+
     // Update status to Processing
     {
         let mut measurements = state.measurements.lock().unwrap();
-        if let Some(measurement) = measurements.get_mut(&id) {
-            measurement.status = ProofStatus::Processing;
+        if let Some(m) = measurements.get_mut(&id) {
+            m.status = ProofStatus::Processing;
         }
     }
 
     println!("Starting proof generation for measurement {}", id);
 
-    // This is where we would call rapidsnark
-    // For now, just simulate a process that would call rapidsnark
-    let result = simulate_rapidsnark_call(&id).await;
+    // Call snarkjs to generate witness and proof
+    let result = generate_snarkjs_proof(&id, &measurement).await;
 
     // Update status based on result
     {
         let mut measurements = state.measurements.lock().unwrap();
-        if let Some(measurement) = measurements.get_mut(&id) {
-            measurement.status =
-                if result.is_ok() { ProofStatus::Completed } else { ProofStatus::Failed };
+        if let Some(m) = measurements.get_mut(&id) {
+            m.status = if result.is_ok() {
+                ProofStatus::Completed
+            } else {
+                println!("Proof generation failed: {:?}", result.err());
+                ProofStatus::Failed
+            };
         }
     }
 }
 
-// Simulate calling rapidsnark (placeholder for now)
-async fn simulate_rapidsnark_call(id: &str) -> Result<(), String> {
-    println!("Simulating rapidsnark proving for {}", id);
+// Use snarkjs to generate witness and proof
+async fn generate_snarkjs_proof(id: &str, measurement: &Measurement) -> Result<(), String> {
+    println!("Generating ZK proof using snarkjs for measurement {}", id);
 
-    // In a real implementation, we would construct the proper command
-    // to run rapidsnark with the appropriate parameters
+    // Create a directory for this proof
+    let proof_dir = format!("proofs/{}", id);
+    fs::create_dir_all(&proof_dir)
+        .map_err(|e| format!("Failed to create proof directory: {}", e))?;
 
-    // Simulate a successful process execution
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    // Create input file for snarkjs
+    let input_path = format!("{}/input.json", proof_dir);
+    
+    // Calculate the distance based on the coordinates
+    let dx = measurement.end_point.x - measurement.start_point.x;
+    let dy = measurement.end_point.y - measurement.start_point.y;
+    let dz = measurement.end_point.z - measurement.start_point.z;
+    // Round to the nearest integer to ensure it's compatible with the circuit
+    let distance_mm = (dx * dx + dy * dy + dz * dz).sqrt().round() as u32;
+    
+    let input_json = serde_json::json!({
+        "point1": [
+            measurement.start_point.x,
+            measurement.start_point.y,
+            measurement.start_point.z
+        ],
+        "point2": [
+            measurement.end_point.x,
+            measurement.end_point.y,
+            measurement.end_point.z
+        ],
+        "distance_mm": distance_mm
+    });
 
+    // Write input JSON to file
+    let input_content = serde_json::to_string_pretty(&input_json)
+        .map_err(|e| format!("Failed to serialize input JSON: {}", e))?;
+    fs::write(&input_path, input_content)
+        .map_err(|e| format!("Failed to write input file: {}", e))?;
+
+    // Paths for circuit artifacts
+    let circuit_wasm = "circuit-compiled/zkHotdog_js/zkHotdog.wasm";
+    // let circuit_r1cs = "circuit/zkHotdog.r1cs";
+    let proving_key = "keys/zkHotdog_final.zkey";
+
+    // Path for witness and proof output
+    let witness_path = format!("{}/witness.wtns", proof_dir);
+    let proof_path = format!("{}/proof.json", proof_dir);
+    let public_path = format!("{}/public.json", proof_dir);
+
+    // Step 1: Generate witness
+    println!("Generating witness...");
+    let witness_status = tokio::process::Command::new("node")
+        .args([
+            "circuit-compiled/zkHotdog_js/generate_witness.js",
+            circuit_wasm,
+            &input_path,
+            &witness_path
+        ])
+        .status()
+        .await
+        .map_err(|e| format!("Failed to execute witness generation: {}", e))?;
+
+    if !witness_status.success() {
+        return Err("Witness generation failed".to_string());
+    }
+
+    // Step 2: Generate proof
+    println!("Generating proof...");
+    let proof_status = tokio::process::Command::new("npx")
+        .args([
+            "snarkjs",
+            "groth16",
+            "prove",
+            proving_key,
+            &witness_path,
+            &proof_path,
+            &public_path
+        ])
+        .status()
+        .await
+        .map_err(|e| format!("Failed to execute proof generation: {}", e))?;
+
+    if !proof_status.success() {
+        return Err("Proof generation failed".to_string());
+    }
+
+    println!("Successfully generated proof for measurement {}", id);
     Ok(())
 }
 

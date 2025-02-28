@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import "./DeployHelpers.s.sol";
 import "../contracts/ZkHotdog.sol";
+import "../contracts/MockZkVerify.sol";
 
 /**
  * @notice Deploy script for ZkHotdog contract
@@ -25,6 +26,16 @@ contract DeployZkHotdog is ScaffoldETHDeploy {
      *      - Export contract addresses & ABIs to `nextjs` packages
      */
     function run() external ScaffoldEthDeployerRunner {
-        new ZkHotdog(deployer);
+        // For development, we'll deploy a mock zkVerify contract
+        MockZkVerify mockZkVerify = new MockZkVerify();
+        
+        // Use a test vkey
+        bytes32 vkey = bytes32(uint256(123456789));
+        
+        // Deploy the zkHotdog contract with mock zkVerify
+        ZkHotdog zkHotdog = new ZkHotdog(deployer, address(mockZkVerify), vkey);
+        
+        console.log("Deployed MockZkVerify at:", address(mockZkVerify));
+        console.log("Deployed ZkHotdog at:", address(zkHotdog));
     }
 }

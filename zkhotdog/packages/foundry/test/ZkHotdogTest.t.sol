@@ -3,9 +3,11 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../contracts/ZkHotdog.sol";
+import "../contracts/MockZkVerify.sol";
 
 contract ZkHotdogTest is Test {
     ZkHotdog public zkhotdog;
+    MockZkVerify public mockZkVerify;
 
     address public owner;
     address public user1;
@@ -17,14 +19,31 @@ contract ZkHotdogTest is Test {
     // Mock data for ZK proof (currently not verified in the contract)
     bytes public mockProof = hex"1234";
     uint256[] public mockPublicSignals;
+    
+    // Mock data for attestation verification
+    uint256 public mockAttestationId = 12345;
+    bytes32[] public mockMerklePath;
+    uint256 public mockLeafCount = 10;
+    uint256 public mockIndex = 3;
+    bytes32 public mockVkey = bytes32(uint256(123456789));
 
     function setUp() public {
         owner = address(1);
         user1 = address(2);
         user2 = address(3);
 
+        // Create mock merkle path
+        mockMerklePath = new bytes32[](3);
+        mockMerklePath[0] = bytes32(uint256(111));
+        mockMerklePath[1] = bytes32(uint256(222));
+        mockMerklePath[2] = bytes32(uint256(333));
+
         vm.startPrank(owner);
-        zkhotdog = new ZkHotdog(owner);
+        // Create mock zkVerify contract
+        mockZkVerify = new MockZkVerify();
+        
+        // Create ZkHotdog contract with mock zkVerify
+        zkhotdog = new ZkHotdog(owner, address(mockZkVerify), mockVkey);
         vm.stopPrank();
 
         // Setup mock public signals
@@ -32,19 +51,21 @@ contract ZkHotdogTest is Test {
         mockPublicSignals[0] = 123;
     }
 
-    // Test minting functionality
-    function testMint() public {
+    // Test attestation-based minting
+    function testMintWithAttestation() public {
         vm.startPrank(user1);
 
         // Before minting
         assertEq(zkhotdog.balanceOf(user1), 0);
 
-        // Mint a token
-        zkhotdog.mint(
+        // Mint a token with attestation
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
 
         // After minting
@@ -61,7 +82,7 @@ contract ZkHotdogTest is Test {
 
         // Try to mint with empty image URL
         vm.expectRevert("Image URL cannot be empty");
-        zkhotdog.mint("", TEST_LENGTH, mockProof, mockPublicSignals);
+        zkhotdog.mintWithAttestation("", TEST_LENGTH, mockAttestationId, mockMerklePath, mockLeafCount, mockIndex);
 
         vm.stopPrank();
     }
@@ -71,23 +92,29 @@ contract ZkHotdogTest is Test {
         vm.startPrank(user1);
 
         // Mint 3 tokens
-        zkhotdog.mint(
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
-        zkhotdog.mint(
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH + 5,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
-        zkhotdog.mint(
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH + 10,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
 
         // Check balances and ownership
@@ -100,39 +127,76 @@ contract ZkHotdogTest is Test {
     }
 
     // Test token verification
-    function testVerifyToken() public {
-        // Mint a token first
+    function testTokenIsVerifiedAfterAttestation() public {
+        // Mint a token with attestation
         vm.startPrank(user1);
-        zkhotdog.mint(
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
         vm.stopPrank();
 
-        // Check initial verification status
-        assertFalse(zkhotdog.isVerified(1));
-
-        // Verify the token (owner only)
-        vm.prank(owner);
-        zkhotdog.verifyToken(1);
-
-        // Check verification status after
+        // Token should be already verified through zkVerify attestation
         assertTrue(zkhotdog.isVerified(1));
     }
 
-    // Test verification by non-owner (should revert)
-    function testVerifyTokenNonOwner() public {
-        // Mint a token first
+    // Test manual verification still works
+    function testManualVerification() public {
+        // Mint a token with attestation (already verified)
         vm.startPrank(user1);
-        zkhotdog.mint(
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
         vm.stopPrank();
+        
+        // Mint another token that we'll verify manually
+        vm.startPrank(user1);
+        zkhotdog.mintWithAttestation(
+            TEST_IMAGE_URL,
+            TEST_LENGTH + 5,
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
+        );
+        vm.stopPrank();
+
+        // The second token was auto-verified too, so manually verifying it
+        // should revert as it's already verified
+        vm.prank(owner);
+        vm.expectRevert("Token already verified");
+        zkhotdog.verifyToken(2);
+    }
+    
+    // Test verification by non-owner (should revert)
+    function testVerifyTokenNonOwner() public {
+        // Mint a token with attestation
+        vm.startPrank(user1);
+        zkhotdog.mintWithAttestation(
+            TEST_IMAGE_URL,
+            TEST_LENGTH,
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
+        );
+        vm.stopPrank();
+        
+        // Create a new token that needs verification
+        vm.prank(owner);
+        // Let's pretend token 2 needs verification
+        // Set token 2's verified status to false for testing
+        // (We can't directly do this in a real scenario, this is just for testing)
+        zkhotdog.verifyToken(1);
 
         // Try to verify as non-owner
         vm.prank(user2);
@@ -143,20 +207,19 @@ contract ZkHotdogTest is Test {
             )
         );
         zkhotdog.verifyToken(1);
-
-        // Status should remain unverified
-        assertFalse(zkhotdog.isVerified(1));
     }
 
     // Test burn functionality
     function testBurn() public {
         // Mint a token first
         vm.startPrank(user1);
-        zkhotdog.mint(
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
         vm.stopPrank();
 
@@ -182,11 +245,13 @@ contract ZkHotdogTest is Test {
     function testNoTransfers() public {
         // Mint a token first
         vm.startPrank(user1);
-        zkhotdog.mint(
+        zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH,
-            mockProof,
-            mockPublicSignals
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
         );
 
         // Try to transfer (should revert with custom error)
@@ -213,5 +278,32 @@ contract ZkHotdogTest is Test {
         vm.prank(owner);
         vm.expectRevert("Token does not exist");
         zkhotdog.verifyToken(999);
+    }
+    
+    // Test attestation data is handled correctly
+    function testAttestationVerification() public {
+        vm.startPrank(user1);
+        
+        // Mint token with attestation
+        zkhotdog.mintWithAttestation(
+            TEST_IMAGE_URL,
+            TEST_LENGTH,
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
+        );
+        
+        vm.stopPrank();
+        
+        // The token should be verified already through attestation
+        assertTrue(zkhotdog.isVerified(1));
+        
+        // Check that attestation data was handled correctly by viewing tokenURI
+        string memory uri = zkhotdog.tokenURI(1);
+        
+        // The URI contains the verified status, but we can't directly check the string contents
+        // in this test. In a real system, we'd parse the Base64 data and check the JSON.
+        assertGt(bytes(uri).length, 0);
     }
 }

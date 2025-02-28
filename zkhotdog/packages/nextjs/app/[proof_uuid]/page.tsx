@@ -14,24 +14,34 @@ interface Point3D {
   z: number;
 }
 
+interface AttestationData {
+  attestationId: number;
+  merklePath: string[];
+  leafCount: number;
+  index: number;
+}
+
 interface Measurement {
   id: string;
   image_path: string;
   start_point: Point3D;
   end_point: Point3D;
   status: "Pending" | "Processing" | "Completed" | "Failed";
+  attestation?: AttestationData;
 }
 
-// NFT Contract ABI (just the mint function)
+// NFT Contract ABI for attestation-based minting
 const zkHotdogAbi = [
   {
     inputs: [
       { internalType: "string", name: "imageUrl", type: "string" },
       { internalType: "uint256", name: "lengthInCm", type: "uint256" },
-      { internalType: "bytes", name: "proof", type: "bytes" },
-      { internalType: "uint256[]", name: "publicSignals", type: "uint256[]" },
+      { internalType: "uint256", name: "_attestationId", type: "uint256" },
+      { internalType: "bytes32[]", name: "_merklePath", type: "bytes32[]" },
+      { internalType: "uint256", name: "_leafCount", type: "uint256" },
+      { internalType: "uint256", name: "_index", type: "uint256" },
     ],
-    name: "mint",
+    name: "mintWithAttestation",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -56,11 +66,11 @@ export default function ProofStatusPage() {
   // Get the proof UUID from the URL
   const proofUuid = params.proof_uuid as string;
 
-  // Contract write hook for minting NFT
-  const { write: mintNft, isLoading: isMinting, isSuccess: isMintSuccess } = useContractWrite({
+  // Contract write hook for minting NFT with attestation
+  const { write: mintWithAttestation, isLoading: isMinting, isSuccess: isMintSuccess } = useContractWrite({
     address: ZK_HOTDOG_CONTRACT_ADDRESS as `0x${string}`,
     abi: zkHotdogAbi,
-    functionName: "mint",
+    functionName: "mintWithAttestation",
   });
 
   // Function to fetch the proof status from the backend
@@ -87,7 +97,7 @@ export default function ProofStatusPage() {
     }
   };
 
-  // Function to mint NFT once proof is completed
+  // Function to mint NFT with attestation once proof is completed
   const handleMintNft = () => {
     if (!measurement || measurement.status !== "Completed") return;
     
@@ -97,22 +107,28 @@ export default function ProofStatusPage() {
     const dz = measurement.end_point.z - measurement.start_point.z;
     const lengthInCm = Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz) / 10); // Convert mm to cm
 
-    // For now use empty proof since backend doesn't return it yet
-    // In a real implementation, we would get the proof data from the backend
-    const emptyProof = "0x";
-    
-    // The public signals should match the distance calculated on-chain
-    const publicSignals = [lengthInCm];
-
     // Create image URL by referencing the backend
     const imageUrl = `http://localhost:3000/img/${measurement.id}`;
 
-    mintNft({
+    // Get attestation data
+    if (!measurement.attestation) {
+      console.error("Attestation data missing");
+      return;
+    }
+    
+    const { attestationId, merklePath, leafCount, index } = measurement.attestation;
+    
+    // Convert merklePath strings to bytes32 format
+    const merklePathBytes32 = merklePath.map(path => path as `0x${string}`);
+    
+    mintWithAttestation({
       args: [
         imageUrl,
-        lengthInCm,
-        emptyProof as `0x${string}`,
-        publicSignals,
+        BigInt(lengthInCm),
+        BigInt(attestationId),
+        merklePathBytes32,
+        BigInt(leafCount),
+        BigInt(index)
       ],
     });
   };

@@ -25,12 +25,24 @@ struct Point3D {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+struct AttestationData {
+    #[serde(rename = "attestationId")]
+    attestation_id: u64,
+    #[serde(rename = "merklePath")]
+    merkle_path: Vec<String>,
+    #[serde(rename = "leafCount")]
+    leaf_count: u64,
+    index: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Measurement {
     id: String,
     image_path: String,
     start_point: Point3D,
     end_point: Point3D,
     status: ProofStatus,
+    attestation: Option<AttestationData>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -150,6 +162,7 @@ async fn handle_measurement(
         start_point,
         end_point,
         status: ProofStatus::Pending,
+        attestation: None,
     };
 
     // Store the measurement in our app state
@@ -345,9 +358,35 @@ async fn check_proof_status(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<Measurement>, (StatusCode, String)> {
-    let measurements = state.measurements.lock().unwrap();
+    let mut measurements = state.measurements.lock().unwrap();
 
-    if let Some(measurement) = measurements.get(&id) {
+    if let Some(measurement) = measurements.get_mut(&id) {
+        // If the status is completed, check for attestation data
+        if matches!(measurement.status, ProofStatus::Completed) && measurement.attestation.is_none() {
+            // Check if attestation.json file exists
+            let attestation_path = format!("proofs/{}/attestation.json", id);
+            if std::path::Path::new(&attestation_path).exists() {
+                // Read and parse the attestation data
+                match fs::read_to_string(&attestation_path) {
+                    Ok(content) => {
+                        match serde_json::from_str::<AttestationData>(&content) {
+                            Ok(attestation_data) => {
+                                // Update the measurement with attestation data
+                                measurement.attestation = Some(attestation_data);
+                                println!("Found attestation data for measurement {}", id);
+                            }
+                            Err(e) => {
+                                println!("Failed to parse attestation data: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("Failed to read attestation file: {}", e);
+                    }
+                }
+            }
+        }
+        
         Ok(Json(measurement.clone()))
     } else {
         Err((StatusCode::NOT_FOUND, format!("Measurement with ID {} not found", id)))

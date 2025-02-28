@@ -69,7 +69,20 @@ export async function verifyProof(proofId: string): Promise<boolean> {
       events.on(ZkVerifyEvents.AttestationConfirmed, async (eventData) => {
         console.log('Attestation Confirmed', eventData);
         const attestationId = eventData.id;
-        fs.writeFileSync(path.join(proofDir, "attestation.json"), JSON.stringify({attestationId: attestationId}, null, 2));
+        const merklePath = eventData.merklePath || [];
+        const leafCount = eventData.leafCount || 0;
+        const index = eventData.index || 0;
+        
+        // Save full attestation data for frontend use
+        fs.writeFileSync(
+          path.join(proofDir, "attestation.json"), 
+          JSON.stringify({
+            attestationId: attestationId,
+            merklePath: merklePath,
+            leafCount: leafCount,
+            index: index
+          }, null, 2)
+        );
       });
 
       events.on('error', (error) => {

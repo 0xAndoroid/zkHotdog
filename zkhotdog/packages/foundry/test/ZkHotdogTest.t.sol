@@ -4,6 +4,38 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/ZkHotdog.sol";
 import "../contracts/MockZkVerify.sol";
+import "../contracts/IZkHotdogServiceManager.sol";
+
+// Mock Service Manager for testing automatic task creation
+contract MockServiceManager {
+    uint256 private lastTokenId;
+    string private lastImageUrl;
+    uint32 private constant MOCK_TASK_INDEX = 123;
+
+    function createNewTask(uint256 tokenId, string memory imageUrl) external returns (IZkHotdogServiceManager.Task memory) {
+        lastTokenId = tokenId;
+        lastImageUrl = imageUrl;
+
+        // Return a mock task
+        return IZkHotdogServiceManager.Task({
+            tokenId: tokenId,
+            imageUrl: imageUrl,
+            taskCreatedBlock: uint32(block.number)
+        });
+    }
+
+    function latestTaskNum() external pure returns (uint32) {
+        return MOCK_TASK_INDEX + 1; // So that latestTaskNum - 1 = MOCK_TASK_INDEX
+    }
+
+    function getLastTaskCreated() external view returns (uint256, string memory) {
+        return (lastTokenId, lastImageUrl);
+    }
+    
+    function mockTaskIndex() external pure returns (uint32) {
+        return MOCK_TASK_INDEX;
+    }
+}
 
 contract ZkHotdogTest is Test {
     ZkHotdog public zkhotdog;
@@ -43,7 +75,7 @@ contract ZkHotdogTest is Test {
         mockZkVerify = new MockZkVerify();
         
         // Create ZkHotdog contract with mock zkVerify
-        zkhotdog = new ZkHotdog(owner, address(mockZkVerify), mockVkey);
+        zkhotdog = new ZkHotdog(address(mockZkVerify), mockVkey);
         vm.stopPrank();
 
         // Setup mock public signals
@@ -127,7 +159,7 @@ contract ZkHotdogTest is Test {
     }
 
     // Test token verification
-    function testTokenIsVerifiedAfterAttestation() public {
+    function testTokenIsNotVerifiedAfterAttestation() public {
         // Mint a token with attestation
         vm.startPrank(user1);
         zkhotdog.mintWithAttestation(
@@ -140,13 +172,13 @@ contract ZkHotdogTest is Test {
         );
         vm.stopPrank();
 
-        // Token should be already verified through zkVerify attestation
-        assertTrue(zkhotdog.isVerified(1));
+        // Token should NOT be verified yet - verification happens through EigenLayer
+        assertFalse(zkhotdog.isVerified(1));
     }
 
-    // Test manual verification still works
+    // Test manual verification works
     function testManualVerification() public {
-        // Mint a token with attestation (already verified)
+        // Mint a token with attestation (not verified yet)
         vm.startPrank(user1);
         zkhotdog.mintWithAttestation(
             TEST_IMAGE_URL,
@@ -170,11 +202,22 @@ contract ZkHotdogTest is Test {
         );
         vm.stopPrank();
 
-        // The second token was auto-verified too, so manually verifying it
-        // should revert as it's already verified
+        // Verify the first token manually
         vm.prank(owner);
-        vm.expectRevert("Token already verified");
+        zkhotdog.verifyToken(1);
+        
+        // Check that it's now verified
+        assertTrue(zkhotdog.isVerified(1));
+        
+        // Check that the second token is still unverified
+        assertFalse(zkhotdog.isVerified(2));
+        
+        // Verify the second token manually
+        vm.prank(owner);
         zkhotdog.verifyToken(2);
+        
+        // Now the second should be verified
+        assertTrue(zkhotdog.isVerified(2));
     }
     
     // Test verification by non-owner (should revert)
@@ -191,22 +234,23 @@ contract ZkHotdogTest is Test {
         );
         vm.stopPrank();
         
-        // Create a new token that needs verification
-        vm.prank(owner);
-        // Let's pretend token 2 needs verification
-        // Set token 2's verified status to false for testing
-        // (We can't directly do this in a real scenario, this is just for testing)
-        zkhotdog.verifyToken(1);
+        // The token should not be verified automatically
+        assertFalse(zkhotdog.isVerified(1));
 
-        // Try to verify as non-owner
+        // Try to verify as non-owner (user2)
         vm.prank(user2);
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "OwnableUnauthorizedAccount(address)",
-                user2
-            )
-        );
+        vm.expectRevert(abi.encodeWithSignature("NotAuthorized()"));
         zkhotdog.verifyToken(1);
+        
+        // Token should still be unverified
+        assertFalse(zkhotdog.isVerified(1));
+        
+        // Now verify using owner
+        vm.prank(owner);
+        zkhotdog.verifyToken(1);
+        
+        // Now it should be verified
+        assertTrue(zkhotdog.isVerified(1));
     }
 
     // Test burn functionality
@@ -226,6 +270,11 @@ contract ZkHotdogTest is Test {
         // Verify token exists
         assertEq(zkhotdog.balanceOf(user1), 1);
         assertEq(zkhotdog.ownerOf(1), user1);
+        
+        // Manually verify the token
+        vm.prank(owner);
+        zkhotdog.verifyToken(1);
+        assertTrue(zkhotdog.isVerified(1));
 
         // Any user can burn tokens (even non-owners)
         vm.prank(user2);
@@ -234,10 +283,8 @@ contract ZkHotdogTest is Test {
         // Token should no longer exist
         assertEq(zkhotdog.balanceOf(user1), 0);
 
-        // Checking ownerOf should revert with custom error
-        vm.expectRevert(
-            abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 1)
-        );
+        // Checking ownerOf should revert with error
+        vm.expectRevert("ERC721: invalid token ID");
         zkhotdog.ownerOf(1);
     }
 
@@ -264,9 +311,7 @@ contract ZkHotdogTest is Test {
     // Test non-existent token operations
     function testNonExistentToken() public {
         // Check token that doesn't exist
-        vm.expectRevert(
-            abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 999)
-        );
+        vm.expectRevert("ERC721: invalid token ID");
         zkhotdog.ownerOf(999);
 
         vm.expectRevert("Token does not exist");
@@ -296,7 +341,14 @@ contract ZkHotdogTest is Test {
         
         vm.stopPrank();
         
-        // The token should be verified already through attestation
+        // The token should NOT be verified automatically
+        assertFalse(zkhotdog.isVerified(1));
+        
+        // Now verify it manually
+        vm.prank(owner);
+        zkhotdog.verifyToken(1);
+        
+        // Now it should be verified
         assertTrue(zkhotdog.isVerified(1));
         
         // Check that attestation data was handled correctly by viewing tokenURI
@@ -305,5 +357,102 @@ contract ZkHotdogTest is Test {
         // The URI contains the verified status, but we can't directly check the string contents
         // in this test. In a real system, we'd parse the Base64 data and check the JSON.
         assertGt(bytes(uri).length, 0);
+    }
+    
+    // Test service manager integration
+    function testServiceManagerIntegration() public {
+        // Set up a mock service manager address
+        address mockServiceManager = address(0x123);
+        
+        // Set the service manager
+        vm.prank(owner);
+        zkhotdog.setServiceManager(mockServiceManager);
+        
+        // Check that service manager was correctly set
+        assertEq(zkhotdog.serviceManager(), mockServiceManager);
+
+        // Mock the createNewTask function call 
+        // that will be called during minting
+        vm.mockCall(
+            mockServiceManager,
+            abi.encodeWithSelector(
+                IZkHotdogServiceManager.createNewTask.selector,
+                1, // expected tokenId
+                TEST_IMAGE_URL
+            ),
+            abi.encode(IZkHotdogServiceManager.Task({
+                tokenId: 1,
+                imageUrl: TEST_IMAGE_URL,
+                taskCreatedBlock: uint32(block.number)
+            }))
+        );
+        
+        // Mock the latestTaskNum call that will be used to set the task index
+        vm.mockCall(
+            mockServiceManager,
+            abi.encodeWithSelector(IZkHotdogServiceManager.latestTaskNum.selector),
+            abi.encode(uint32(42)) // fake task number
+        );
+        
+        // Mint a token with service manager set - should automatically create a task
+        vm.startPrank(user1);
+        uint256 tokenId = zkhotdog.mintWithAttestation(
+            TEST_IMAGE_URL,
+            TEST_LENGTH,
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
+        );
+        vm.stopPrank();
+        
+        // Check that the token was minted
+        assertEq(zkhotdog.ownerOf(tokenId), user1);
+        
+        // Verify the task index was set in the metadata
+        // taskIndex should be latestTaskNum - 1 = 41
+        assertEq(zkhotdog.getTaskIndex(tokenId), 41);
+        
+        // Initially the token should not be verified
+        assertFalse(zkhotdog.isVerified(tokenId));
+        
+        // Verify a token using the service manager address
+        vm.prank(mockServiceManager);
+        zkhotdog.verifyToken(tokenId);
+        
+        // Check that it's now verified
+        assertTrue(zkhotdog.isVerified(tokenId));
+    }
+    
+    // Test minting with automatic task creation
+    function testMintWithAutomaticTaskCreation() public {
+        // Create a mock ZkHotdogServiceManager
+        MockServiceManager mockSM = new MockServiceManager();
+        
+        // Set the service manager 
+        vm.prank(owner);
+        zkhotdog.setServiceManager(address(mockSM));
+        
+        // Mint an NFT - this should automatically create a task
+        vm.startPrank(user1);
+        uint256 tokenId = zkhotdog.mintWithAttestation(
+            TEST_IMAGE_URL,
+            TEST_LENGTH,
+            mockAttestationId,
+            mockMerklePath,
+            mockLeafCount,
+            mockIndex
+        );
+        vm.stopPrank();
+        
+        // Verify the mock service manager recorded the correct data
+        (uint256 recordedTokenId, string memory recordedImageUrl) = mockSM.getLastTaskCreated();
+        
+        // Check the token ID and image URL match what was sent
+        assertEq(recordedTokenId, tokenId);
+        assertEq(recordedImageUrl, TEST_IMAGE_URL);
+        
+        // Check the token's task index was updated
+        assertEq(zkhotdog.getTaskIndex(tokenId), mockSM.mockTaskIndex());
     }
 }

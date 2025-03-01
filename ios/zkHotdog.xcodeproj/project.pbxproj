@@ -6,27 +6,8 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXContainerItemProxy section */
-		BD9D2D682D6D152900C8A07F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = BD9D2D4D2D6D152700C8A07F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = BD9D2D542D6D152700C8A07F;
-			remoteInfo = zkHotdog;
-		};
-		BD9D2D722D6D152900C8A07F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = BD9D2D4D2D6D152700C8A07F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = BD9D2D542D6D152700C8A07F;
-			remoteInfo = zkHotdog;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
 		BD9D2D552D6D152700C8A07F /* zkHotdog.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = zkHotdog.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BD9D2D672D6D152900C8A07F /* zkHotdogTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zkHotdogTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		BD9D2D712D6D152900C8A07F /* zkHotdogUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = zkHotdogUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -58,20 +39,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BD9D2D642D6D152900C8A07F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		BD9D2D6E2D6D152900C8A07F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -87,8 +54,6 @@
 			isa = PBXGroup;
 			children = (
 				BD9D2D552D6D152700C8A07F /* zkHotdog.app */,
-				BD9D2D672D6D152900C8A07F /* zkHotdogTests.xctest */,
-				BD9D2D712D6D152900C8A07F /* zkHotdogUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -118,46 +83,6 @@
 			productReference = BD9D2D552D6D152700C8A07F /* zkHotdog.app */;
 			productType = "com.apple.product-type.application";
 		};
-		BD9D2D662D6D152900C8A07F /* zkHotdogTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = BD9D2D7E2D6D152900C8A07F /* Build configuration list for PBXNativeTarget "zkHotdogTests" */;
-			buildPhases = (
-				BD9D2D632D6D152900C8A07F /* Sources */,
-				BD9D2D642D6D152900C8A07F /* Frameworks */,
-				BD9D2D652D6D152900C8A07F /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				BD9D2D692D6D152900C8A07F /* PBXTargetDependency */,
-			);
-			name = zkHotdogTests;
-			packageProductDependencies = (
-			);
-			productName = zkHotdogTests;
-			productReference = BD9D2D672D6D152900C8A07F /* zkHotdogTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		BD9D2D702D6D152900C8A07F /* zkHotdogUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = BD9D2D812D6D152900C8A07F /* Build configuration list for PBXNativeTarget "zkHotdogUITests" */;
-			buildPhases = (
-				BD9D2D6D2D6D152900C8A07F /* Sources */,
-				BD9D2D6E2D6D152900C8A07F /* Frameworks */,
-				BD9D2D6F2D6D152900C8A07F /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				BD9D2D732D6D152900C8A07F /* PBXTargetDependency */,
-			);
-			name = zkHotdogUITests;
-			packageProductDependencies = (
-			);
-			productName = zkHotdogUITests;
-			productReference = BD9D2D712D6D152900C8A07F /* zkHotdogUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -170,14 +95,6 @@
 				TargetAttributes = {
 					BD9D2D542D6D152700C8A07F = {
 						CreatedOnToolsVersion = 16.2;
-					};
-					BD9D2D662D6D152900C8A07F = {
-						CreatedOnToolsVersion = 16.2;
-						TestTargetID = BD9D2D542D6D152700C8A07F;
-					};
-					BD9D2D702D6D152900C8A07F = {
-						CreatedOnToolsVersion = 16.2;
-						TestTargetID = BD9D2D542D6D152700C8A07F;
 					};
 				};
 			};
@@ -196,28 +113,12 @@
 			projectRoot = "";
 			targets = (
 				BD9D2D542D6D152700C8A07F /* zkHotdog */,
-				BD9D2D662D6D152900C8A07F /* zkHotdogTests */,
-				BD9D2D702D6D152900C8A07F /* zkHotdogUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		BD9D2D532D6D152700C8A07F /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		BD9D2D652D6D152900C8A07F /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		BD9D2D6F2D6D152900C8A07F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -234,34 +135,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		BD9D2D632D6D152900C8A07F /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		BD9D2D6D2D6D152900C8A07F /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		BD9D2D692D6D152900C8A07F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = BD9D2D542D6D152700C8A07F /* zkHotdog */;
-			targetProxy = BD9D2D682D6D152900C8A07F /* PBXContainerItemProxy */;
-		};
-		BD9D2D732D6D152900C8A07F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = BD9D2D542D6D152700C8A07F /* zkHotdog */;
-			targetProxy = BD9D2D722D6D152900C8A07F /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		BD9D2D792D6D152900C8A07F /* Debug */ = {
@@ -443,74 +317,6 @@
 			};
 			name = Release;
 		};
-		BD9D2D7F2D6D152900C8A07F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = xyz.tretyakov.zkHotdogTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/zkHotdog.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/zkHotdog";
-			};
-			name = Debug;
-		};
-		BD9D2D802D6D152900C8A07F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = xyz.tretyakov.zkHotdogTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/zkHotdog.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/zkHotdog";
-			};
-			name = Release;
-		};
-		BD9D2D822D6D152900C8A07F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = xyz.tretyakov.zkHotdogUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = zkHotdog;
-			};
-			name = Debug;
-		};
-		BD9D2D832D6D152900C8A07F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = xyz.tretyakov.zkHotdogUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = zkHotdog;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -528,24 +334,6 @@
 			buildConfigurations = (
 				BD9D2D7C2D6D152900C8A07F /* Debug */,
 				BD9D2D7D2D6D152900C8A07F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		BD9D2D7E2D6D152900C8A07F /* Build configuration list for PBXNativeTarget "zkHotdogTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				BD9D2D7F2D6D152900C8A07F /* Debug */,
-				BD9D2D802D6D152900C8A07F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		BD9D2D812D6D152900C8A07F /* Build configuration list for PBXNativeTarget "zkHotdogUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				BD9D2D822D6D152900C8A07F /* Debug */,
-				BD9D2D832D6D152900C8A07F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

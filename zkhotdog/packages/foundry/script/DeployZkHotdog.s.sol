@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import "./DeployHelpers.s.sol";
 import "../contracts/ZkHotdog.sol";
 import "../contracts/MockZkVerify.sol";
+import "../contracts/ZkHotdogServiceManager.sol";
 
 /**
  * @notice Deploy script for ZkHotdog contract
@@ -28,14 +29,50 @@ contract DeployZkHotdog is ScaffoldETHDeploy {
     function run() external ScaffoldEthDeployerRunner {
         // For development, we'll deploy a mock zkVerify contract
         MockZkVerify mockZkVerify = new MockZkVerify();
-        
+
         // Use a test vkey
         bytes32 vkey = bytes32(uint256(123456789));
-        
+
         // Deploy the zkHotdog contract with mock zkVerify
-        ZkHotdog zkHotdog = new ZkHotdog(deployer, address(mockZkVerify), vkey);
-        
+        ZkHotdog zkHotdog = new ZkHotdog(address(mockZkVerify), vkey);
+
+        // Define EigenLayer parameters (mock addresses for development)
+        address mockAvsDirectory = address(
+            0x1111111111111111111111111111111111111111
+        );
+        address mockStakeRegistry = address(
+            0x2222222222222222222222222222222222222222
+        );
+        address mockRewardsCoordinator = address(
+            0x3333333333333333333333333333333333333333
+        );
+        address mockDelegationManager = address(
+            0x4444444444444444444444444444444444444444
+        );
+
+        // Deploy the ZkHotdog Service Manager
+        ZkHotdogServiceManager serviceManager = new ZkHotdogServiceManager(
+            mockAvsDirectory,
+            mockStakeRegistry,
+            mockRewardsCoordinator,
+            mockDelegationManager
+        );
+
+        // Initialize the Service Manager
+        serviceManager.initialize(
+            deployer, // initialOwner
+            deployer, // rewardsInitiator (using deployer for simplicity)
+            address(zkHotdog)
+        );
+
+        // Set the Service Manager in the ZkHotdog contract
+        zkHotdog.setServiceManager(address(serviceManager));
+
         console.log("Deployed MockZkVerify at:", address(mockZkVerify));
         console.log("Deployed ZkHotdog at:", address(zkHotdog));
+        console.log(
+            "Deployed ZkHotdogServiceManager at:",
+            address(serviceManager)
+        );
     }
 }

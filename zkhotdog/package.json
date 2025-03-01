@@ -1,5 +1,5 @@
 {
-  "name": "se-2",
+  "name": "zkhotdog",
   "version": "0.0.1",
   "private": true,
   "workspaces": {
@@ -15,7 +15,7 @@
     "compile": "yarn foundry:compile",
     "deploy": "yarn foundry:deploy",
     "fork": "yarn foundry:fork",
-    "format": "yarn next:format && yarn foundry:format",
+    "format": "yarn next:format && yarn foundry:format && yarn avs:lint",
     "foundry:account": "yarn workspace @se-2/foundry account",
     "foundry:account-import": "yarn workspace @se-2/foundry account:import",
     "foundry:chain": "yarn workspace @se-2/foundry chain",
@@ -32,7 +32,7 @@
     "generate": "yarn foundry:generate",
     "postinstall": "husky install",
     "ipfs": "yarn workspace @se-2/nextjs ipfs",
-    "lint": "yarn next:lint && yarn foundry:lint",
+    "lint": "yarn next:lint && yarn foundry:lint && yarn avs:lint",
     "next:build": "yarn workspace @se-2/nextjs build",
     "next:check-types": "yarn workspace @se-2/nextjs check-types",
     "next:format": "yarn workspace @se-2/nextjs format",
@@ -40,11 +40,17 @@
     "next:serve": "yarn workspace @se-2/nextjs serve",
     "precommit": "lint-staged",
     "start": "yarn workspace @se-2/nextjs dev",
-    "test": "yarn foundry:test",
+    "test": "yarn foundry:test && yarn avs:test",
     "vercel": "yarn workspace @se-2/nextjs vercel",
     "vercel:login": "yarn workspace @se-2/nextjs vercel:login",
     "vercel:yolo": "yarn workspace @se-2/nextjs vercel:yolo",
-    "verify": "yarn foundry:verify"
+    "verify": "yarn foundry:verify",
+    "avs:build": "yarn workspace @zkhotdog/eigen-avs build",
+    "avs:start": "yarn workspace @zkhotdog/eigen-avs start",
+    "avs:register": "yarn workspace @zkhotdog/eigen-avs register",
+    "avs:dev": "yarn workspace @zkhotdog/eigen-avs dev",
+    "avs:lint": "yarn workspace @zkhotdog/eigen-avs lint",
+    "avs:test": "yarn workspace @zkhotdog/eigen-avs test"
   },
   "devDependencies": {
     "husky": "~9.1.6",

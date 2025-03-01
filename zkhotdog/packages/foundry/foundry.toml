@@ -2,8 +2,17 @@
 src = 'contracts'
 out = 'out'
 libs = ['lib']
-fs_permissions = [{ access = "read-write", path = "./"}]
+fs_permissions = [{ access = "read-write", path = "./" }]
+via-ir = true
 
+remappings = [
+  "@eigenlayer/=lib/eigenlayer-middleware/lib/eigenlayer-contracts/src/",
+  "@eigenlayer-scripts/=lib/eigenlayer-middleware/lib/eigenlayer-contracts/script/",
+  "@eigenlayer-middleware/=lib/eigenlayer-middleware/",
+  "@openzeppelin/=lib/eigenlayer-middleware/lib/eigenlayer-contracts/lib/openzeppelin-contracts/",
+  "@openzeppelin-upgrades/=lib/eigenlayer-middleware/lib/eigenlayer-contracts/lib/openzeppelin-contracts-upgradeable/",
+  "forge-std/=lib/forge-std/src/",
+]
 
 [rpc_endpoints]
 default_network = "http://127.0.0.1:8545"
@@ -34,15 +43,12 @@ polygonMumbai = { key = "${ETHERSCAN_API_KEY}" }
 sepolia = { key = "${ETHERSCAN_API_KEY}" }
 
 
-
 [fmt]
 line_length = 120
 tab_width = 4
 quote_style = "double"
 bracket_spacing = true
 int_types = "long"
-
-
 
 
 # See more config options https://book.getfoundry.sh/reference/config/overview

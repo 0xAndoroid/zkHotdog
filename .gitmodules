@@ -4,6 +4,6 @@
 [submodule "zkhotdog/packages/foundry/lib/solidity-bytes-utils"]
 	path = zkhotdog/packages/foundry/lib/solidity-bytes-utils
 	url = https://github.com/gnsps/solidity-bytes-utils
-[submodule "zkhotdog/packages/foundry/lib/openzeppelin-contracts"]
-	path = zkhotdog/packages/foundry/lib/openzeppelin-contracts
-	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "zkhotdog/packages/foundry/lib/eigenlayer-middleware"]
+	path = zkhotdog/packages/foundry/lib/eigenlayer-middleware
+	url = https://github.com/Layr-Labs/eigenlayer-middleware

@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "./IZkVerify.sol";
+import "./IZkHotdogServiceManager.sol";
 
 /**
  * @title zkHotdog NFT
@@ -21,8 +22,12 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
     // vkey for our circuit
     bytes32 public vkey;
 
+    // ZkHotdog Service Manager address
+    address public serviceManager;
+
     // Proving system ID for groth16
-    bytes32 public constant PROVING_SYSTEM_ID = keccak256(abi.encodePacked("groth16"));
+    bytes32 public constant PROVING_SYSTEM_ID =
+        keccak256(abi.encodePacked("groth16"));
 
     // Struct to store metadata for each token
     struct TokenMetadata {
@@ -30,6 +35,7 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
         uint256 lengthInCm;
         uint256 mintedAt;
         bool verified;
+        uint32 taskIndex; // EigenLayer AVS task index
     }
 
     // Mapping from token ID to token metadata
@@ -53,21 +59,34 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
         uint256 indexed tokenId
     );
 
-    // Event emitted when a token is verified by the owner
+    // Event emitted when a token is verified by the owner or service manager
     event HotdogVerified(uint256 indexed tokenId, address indexed verifier);
 
     error TokenIsNontransferable();
+    error NotAuthorized();
 
     /**
      * @dev Constructor initializes the contract with a name and symbol
-     * @param owner The contract owner address
      * @param _zkVerify The zkVerify contract address
      * @param _vkey The verification key hash
      */
-    constructor(address owner, address _zkVerify, bytes32 _vkey) ERC721("zkHotdog", "HOTDOG") Ownable(owner) {
+    constructor(
+        address _zkVerify,
+        bytes32 _vkey
+    ) ERC721("zkHotdog", "HOTDOG") Ownable() {
         _nextTokenId = 1;
         zkVerify = _zkVerify;
         vkey = _vkey;
+    }
+
+    /**
+     * @dev Modifier to ensure only authorized addresses can call a function
+     */
+    modifier onlyAuthorized() {
+        if (msg.sender != owner() && msg.sender != serviceManager) {
+            revert NotAuthorized();
+        }
+        _;
     }
 
     /**
@@ -114,13 +133,14 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
     }
 
     /**
-     * @dev Mint a new token with attestation verification
+     * @dev Mint a new token with attestation verification and create verification task
      * @param imageUrl URL pointing to the image of the hotdog
      * @param lengthInCm Length of the hotdog in centimeters
      * @param _attestationId The attestation ID from zkVerify
      * @param _merklePath The merkle path for attestation proof
      * @param _leafCount The number of leaves in the merkle tree
      * @param _index The index of the leaf in the merkle tree
+     * @return tokenId The ID of the newly minted token
      */
     function mintWithAttestation(
         string memory imageUrl,
@@ -129,16 +149,18 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
         bytes32[] calldata _merklePath,
         uint256 _leafCount,
         uint256 _index
-    ) public {
+    ) public returns (uint256) {
         require(bytes(imageUrl).length > 0, "Image URL cannot be empty");
-        
+
         // Create the leaf digest
-        bytes32 leaf = keccak256(abi.encodePacked(
-            PROVING_SYSTEM_ID, 
-            vkey, 
-            keccak256(abi.encodePacked(_changeEndianess(lengthInCm)))
-        ));
-        
+        bytes32 leaf = keccak256(
+            abi.encodePacked(
+                PROVING_SYSTEM_ID,
+                vkey,
+                keccak256(abi.encodePacked(_changeEndianess(lengthInCm)))
+            )
+        );
+
         // Verify the attestation proof
         require(
             IZkVerifyAttestation(zkVerify).verifyProofAttestation(
@@ -162,12 +184,45 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
             imageUrl: imageUrl,
             lengthInCm: lengthInCm,
             mintedAt: block.timestamp,
-            verified: true // Verified by zkVerify attestation
+            verified: false, // Will be verified by EigenLayer AVS
+            taskIndex: 0 // No task yet
         });
+
+        // If service manager is set, create a verification task
+        if (serviceManager != address(0)) {
+            // Create verification task using the service manager
+            try IZkHotdogServiceManager(serviceManager).createNewTask(tokenId, imageUrl) returns (
+                IZkHotdogServiceManager.Task memory /* task */
+            ) {
+                // Get the task index from the service manager
+                uint32 taskIndex = IZkHotdogServiceManager(serviceManager).latestTaskNum() - 1;
+                
+                // Update task index in token metadata
+                _tokenMetadata[tokenId].taskIndex = taskIndex;
+            } catch {
+                // If task creation fails, we still allow the mint to succeed
+                // This ensures the user gets their NFT even if task creation has an issue
+            }
+        }
 
         // Emit event
         emit HotdogMinted(msg.sender, tokenId, imageUrl, lengthInCm);
-        emit HotdogVerified(tokenId, address(this));
+        
+        return tokenId;
+    }
+
+    /**
+     * @dev Update task index for a token - can only be called by the service manager
+     * @param tokenId Token ID to update
+     * @param taskIndex New task index
+     */
+    function setTaskIndex(uint256 tokenId, uint32 taskIndex) external {
+        require(
+            msg.sender == serviceManager,
+            "Only service manager can set task index"
+        );
+        require(_exists(tokenId), "Token does not exist");
+        _tokenMetadata[tokenId].taskIndex = taskIndex;
     }
 
     /**
@@ -201,6 +256,9 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
                         '"},',
                         '{"trait_type": "Verified", "value": "',
                         metadata.verified ? "Yes" : "No",
+                        '"},',
+                        '{"trait_type": "Task Index", "value": "',
+                        uint256(metadata.taskIndex).toString(),
                         '"}',
                         "]}"
                     )
@@ -216,8 +274,8 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
      * @param tokenId Token ID to check
      * @return true if the token exists, false otherwise
      */
-    function _exists(uint256 tokenId) internal view returns (bool) {
-        return _ownerOf(tokenId) != address(0);
+    function _exists(uint256 tokenId) internal view override returns (bool) {
+        return super._exists(tokenId);
     }
 
     /**
@@ -244,16 +302,12 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
         return super.tokenOfOwnerByIndex(owner, index);
     }
 
-    function _update(
-        address to,
-        uint256 tokenId,
-        address auth
-    ) internal override returns (address) {
-        address from = _ownerOf(tokenId);
-        if (from != address(0) && to != address(0)) {
-            revert TokenIsNontransferable();
-        }
-        return super._update(to, tokenId, auth);
+    /**
+     * @dev Override the _transfer function to prevent transfers (soulbound)
+     */
+    function _transfer(address, address, uint256) internal virtual override {
+        // Prevent transfers (soulbound tokens)
+        revert TokenIsNontransferable();
     }
 
     /**
@@ -277,10 +331,10 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
     }
 
     /**
-     * @dev Verifies a token - can only be called by the contract owner
+     * @dev Verifies a token - can only be called by authorized addresses
      * @param tokenId Token ID to verify
      */
-    function verifyToken(uint256 tokenId) public onlyOwner {
+    function verifyToken(uint256 tokenId) external onlyAuthorized {
         require(_exists(tokenId), "Token does not exist");
         require(!_tokenMetadata[tokenId].verified, "Token already verified");
 
@@ -299,5 +353,24 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
     function isVerified(uint256 tokenId) public view returns (bool) {
         require(_exists(tokenId), "Token does not exist");
         return _tokenMetadata[tokenId].verified;
+    }
+
+    /**
+     * @dev Gets the task index for a token
+     * @param tokenId Token ID to check
+     * @return taskIndex The AVS task index
+     */
+    function getTaskIndex(uint256 tokenId) public view returns (uint32) {
+        require(_exists(tokenId), "Token does not exist");
+        return _tokenMetadata[tokenId].taskIndex;
+    }
+
+    /**
+     * @dev Set the service manager address - can only be called by owner
+     * @param _serviceManager The new service manager address
+     */
+    function setServiceManager(address _serviceManager) external onlyOwner {
+        require(_serviceManager != address(0), "Invalid address");
+        serviceManager = _serviceManager;
     }
 }

@@ -2,10 +2,11 @@ use axum::{
     Router,
     body::Bytes,
     extract::{Multipart, Path, State},
-    http::{StatusCode, header},
+    http::{StatusCode, header, Method},
     response::{IntoResponse, Json},
     routing::{get, post},
 };
+use tower_http::cors::{CorsLayer, Any};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -28,10 +29,11 @@ struct Point3D {
 struct AttestationData {
     #[serde(rename = "attestationId")]
     attestation_id: u64,
-    #[serde(rename = "merklePath")]
+    #[serde(rename = "merklePath", default)]
     merkle_path: Vec<String>,
-    #[serde(rename = "leafCount")]
+    #[serde(rename = "leafCount", default)]
     leaf_count: u64,
+    #[serde(default)]
     index: u64,
 }
 
@@ -81,17 +83,24 @@ async fn main() {
         measurements: Mutex::new(HashMap::new()),
     });
 
+    // Configure CORS
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+        .allow_headers(Any);
+
     // Build our application with routes
     let app = Router::new()
         .route("/measurements", post(handle_measurement))
         .route("/status/{id}", get(check_proof_status))
         .route("/img/{id}", get(serve_image))
+        .layer(cors)
         .with_state(app_state);
 
     // Run the server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     println!("Server listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -145,6 +154,17 @@ async fn handle_measurement(
         start_point.ok_or((StatusCode::BAD_REQUEST, "Missing start point data".to_string()))?;
     let end_point =
         end_point.ok_or((StatusCode::BAD_REQUEST, "Missing end point data".to_string()))?;
+
+    let start_point = Point3D {
+        x: (start_point.x * 100000.0).round(),
+        y: (start_point.y * 100000.0).round(),
+        z: (start_point.z * 100000.0).round(),
+    };
+    let end_point = Point3D {
+        x: (end_point.x * 100000.0).round(),
+        y: (end_point.y * 100000.0).round(),
+        z: (end_point.z * 100000.0).round(),
+    };
 
     // Generate a unique ID for this measurement
     let id = Uuid::new_v4().to_string();
@@ -276,11 +296,11 @@ async fn generate_snarkjs_proof(id: &str, measurement: &Measurement) -> Result<(
     let input_path = format!("{}/input.json", proof_dir);
 
     // Calculate the distance based on the coordinates
-    let dx = measurement.end_point.x - measurement.start_point.x;
-    let dy = measurement.end_point.y - measurement.start_point.y;
-    let dz = measurement.end_point.z - measurement.start_point.z;
+    let dx = measurement.end_point.x as i32 - measurement.start_point.x as i32;
+    let dy = measurement.end_point.y as i32 - measurement.start_point.y as i32;
+    let dz = measurement.end_point.z as i32 - measurement.start_point.z as i32;
     // Round to the nearest integer to ensure it's compatible with the circuit
-    let distance_mm = (dx * dx + dy * dy + dz * dz).sqrt().round() as u32;
+    let distance_squared = (dx * dx + dy * dy + dz * dz) as u32;
 
     let input_json = serde_json::json!({
         "point1": [
@@ -293,7 +313,7 @@ async fn generate_snarkjs_proof(id: &str, measurement: &Measurement) -> Result<(
             measurement.end_point.y,
             measurement.end_point.z
         ],
-        "distance_mm": distance_mm
+        "distance_squared": distance_squared
     });
 
     // Write input JSON to file
@@ -362,7 +382,8 @@ async fn check_proof_status(
 
     if let Some(measurement) = measurements.get_mut(&id) {
         // If the status is completed, check for attestation data
-        if matches!(measurement.status, ProofStatus::Completed) && measurement.attestation.is_none() {
+        if matches!(measurement.status, ProofStatus::Completed) && measurement.attestation.is_none()
+        {
             // Check if attestation.json file exists
             let attestation_path = format!("proofs/{}/attestation.json", id);
             if std::path::Path::new(&attestation_path).exists() {
@@ -386,7 +407,7 @@ async fn check_proof_status(
                 }
             }
         }
-        
+
         Ok(Json(measurement.clone()))
     } else {
         Err((StatusCode::NOT_FOUND, format!("Measurement with ID {} not found", id)))
@@ -407,7 +428,10 @@ async fn serve_image(Path(id): Path<String>) -> Result<impl IntoResponse, (Statu
     let image_data = match fs::read(&file_path) {
         Ok(data) => data,
         Err(e) => {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read image: {}", e)));
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to read image: {}", e),
+            ));
         }
     };
 

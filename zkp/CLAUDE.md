@@ -7,7 +7,8 @@
 - Format: `cargo fmt`
 - Lint: `cargo clippy`
 - Release build: `cargo build --release`
-- Run circuit compilation: `npx circom circuit/zkHotdog.circom --wasm --r1cs -o circuit-compiled`
+- Run circuit compilation: `circom circuit/zkHotdog.circom --wasm --r1cs -o circuit-compiled`
+- Rebuild circuit and keys: `./build_scripts/rebuild_circuit.sh`
 
 ## Code Style Guidelines
 - **Imports**: Group imports by crate, with std imports first, then external crates, then internal modules

@@ -276,12 +276,51 @@ const processExistingTasks = async () => {
 
     for (let i = startTask; i < latestTaskNum; i++) {
       try {
-        // Fetch task details (this would require additional contract methods in a real implementation)
-        // Here we're simulating this by just creating a dummy task
+        // Get the task hash
+        const taskHash = await zkHotdogServiceManager.allTaskHashes(i);
+        
+        // Only process tasks that haven't been responded to yet
+        const hasResponded = (await zkHotdogServiceManager.allTaskResponses(wallet.address, i)).length > 0;
+        if (hasResponded) {
+          console.log(`Already responded to task ${i}, skipping...`);
+          continue;
+        }
+
+        // Check if we can get task info from past events
+        const filter = zkHotdogServiceManager.filters.NewTaskCreated(i);
+        const events = await zkHotdogServiceManager.queryFilter(filter);
+
+        if (events.length === 0) {
+          console.log(`No event data found for task ${i}, skipping...`);
+          continue;
+        }
+
+        // Extract task data from event - handling different event formats
+        let taskData;
+        const event = events[0];
+        
+        // Check if it's EventLog (has args) or Log (decoded manually)
+        if ('args' in event && event.args) {
+          taskData = event.args.task;
+        } else {
+          // Parse from the raw event data if args is not available
+          const iface = zkHotdogServiceManager.interface;
+          const parsedLog = iface.parseLog({
+            topics: event.topics,
+            data: event.data
+          });
+          taskData = parsedLog?.args?.task;
+        }
+        
+        if (!taskData) {
+          console.log(`Could not extract task data from event ${i}, skipping...`);
+          continue;
+        }
+
         const task = {
-          tokenId: i + 1000, // Dummy token ID
-          imageUrl: process.env.TEST_IMAGE_URL || "https://example.com/test.jpg",
-          taskCreatedBlock: await provider.getBlockNumber() - 10
+          tokenId: taskData.tokenId,
+          imageUrl: taskData.imageUrl,
+          taskCreatedBlock: taskData.taskCreatedBlock
         };
 
         await signAndRespondToTask(i, task);

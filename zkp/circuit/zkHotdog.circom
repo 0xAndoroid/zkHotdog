@@ -51,7 +51,7 @@ template ZkHotdog() {
     signal input point2[3]; // Second point (x,y,z)
     
     // Public input signal - the claimed distance in cm
-    signal input distance_mm;
+    signal input distance_squared;
     
     // Calculate squared distance between points
     component distCalc = PointDistanceSquared();
@@ -64,9 +64,9 @@ template ZkHotdog() {
     
     // Constraint: The claimed distance_cm squared times the scale must equal the calculated squared distance
     // This ensures that distance_cm = sqrt(distanceSquared)/sqrt(scale)
-    distance_mm * distance_mm === distCalc.distanceSquared;
+    distance_squared === distCalc.distanceSquared;
 
 }
 
 // Main component instantiation
-component main {public [distance_mm]} = ZkHotdog();
+component main {public [distance_squared]} = ZkHotdog();

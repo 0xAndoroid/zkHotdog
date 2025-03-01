@@ -13,6 +13,19 @@ echo -e "${GREEN}===== Starting zkHotdog Local Environment =====${NC}"
 BASE_DIR=$(pwd)
 FOUNDRY_DIR="$BASE_DIR/zkhotdog/packages/foundry"
 EIGEN_AVS_DIR="$BASE_DIR/zkhotdog/packages/eigen-avs"
+ZKP_DIR="$BASE_DIR/zkp"
+
+# Copy verification key for contract deployment
+echo -e "${GREEN}Copying ZK verification key for contract deployment...${NC}"
+if [ -f "$ZKP_DIR/keys/verification_key.json" ]; then
+    # Convert verification key to bytes32 format for the contract
+    VKEY=$(cat "$ZKP_DIR/keys/verification_key.json" | sha256sum | awk '{print "0x"$1}')
+    echo -e "${GREEN}Verification key hash: $VKEY${NC}"
+else
+    echo -e "${RED}ERROR: Verification key not found at $ZKP_DIR/keys/verification_key.json${NC}"
+    echo -e "${RED}Cannot proceed with deployment. Please ensure the verification key exists.${NC}"
+    exit 1
+fi
 
 # 1. Start anvil in the background
 echo -e "${GREEN}Starting Anvil local Ethereum node...${NC}"
@@ -33,6 +46,7 @@ export ANVIL_RPC_URL=http://127.0.0.1:8545
 export VERBOSE=true
 export ZK_VERIFY_DEPLOY=true
 export DEPLOY_EIGENLAYER_CORE=true
+export VKEY="$VKEY"
 
 # Run the deployment script in the background
 forge script script/DeployAll.s.sol:DeployAll --fork-url "$ANVIL_RPC_URL" --private-key "$DEPLOYER_PRIVATE_KEY" --broadcast > deployment.log 2>&1 &

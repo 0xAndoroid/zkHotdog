@@ -97,7 +97,11 @@ const Home: NextPage = () => {
               );
               metadata.verified = metadata.attributes?.find(attr => attr.trait_type === "Verified")?.value === "Yes";
               metadata.length =
-                parseInt(metadata.attributes?.find(attr => attr.trait_type === "Length (cm)")?.value as string) / 100;
+                Math.round(
+                  Math.sqrt(
+                    parseInt(metadata.attributes?.find(attr => attr.trait_type === "Length (cm)")?.value as string),
+                  ) / 10,
+                ) / 100;
 
               return {
                 id: tokenId.toString(),

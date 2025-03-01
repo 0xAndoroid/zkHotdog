@@ -191,23 +191,21 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
         // If service manager is set, create a verification task
         if (serviceManager != address(0)) {
             // Create verification task using the service manager
-            try IZkHotdogServiceManager(serviceManager).createNewTask(tokenId, imageUrl) returns (
-                IZkHotdogServiceManager.Task memory /* task */
-            ) {
-                // Get the task index from the service manager
-                uint32 taskIndex = IZkHotdogServiceManager(serviceManager).latestTaskNum() - 1;
-                
-                // Update task index in token metadata
-                _tokenMetadata[tokenId].taskIndex = taskIndex;
-            } catch {
-                // If task creation fails, we still allow the mint to succeed
-                // This ensures the user gets their NFT even if task creation has an issue
-            }
+            IZkHotdogServiceManager(serviceManager).createNewTask(
+                tokenId,
+                imageUrl
+            );
+            // Get the task index from the service manager
+            uint32 taskIndex = IZkHotdogServiceManager(serviceManager)
+                .latestTaskNum() - 1;
+
+            // Update task index in token metadata
+            _tokenMetadata[tokenId].taskIndex = taskIndex;
         }
 
         // Emit event
         emit HotdogMinted(msg.sender, tokenId, imageUrl, lengthInCm);
-        
+
         return tokenId;
     }
 
@@ -351,7 +349,9 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
      * @return true if the token is verified, false otherwise
      */
     function isVerified(uint256 tokenId) public view returns (bool) {
-        require(_exists(tokenId), "Token does not exist");
+        if (!_exists(tokenId)) {
+            return false;
+        }
         return _tokenMetadata[tokenId].verified;
     }
 

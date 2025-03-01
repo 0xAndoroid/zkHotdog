@@ -12,10 +12,15 @@ if (!Object.keys(process.env).length) {
 }
 
 // Setup env variables
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL!, undefined, { polling: true, pollingInterval: 500 });
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
 // Use chainId from env or default to 31337 (Anvil/Hardhat)
 const chainId = Number(process.env.CHAIN_ID || '31337');
+
+// Check for Cloudinary credentials
+if (!process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET || !process.env.CLOUDINARY_CLOUD_NAME) {
+  console.warn("⚠️ Some Cloudinary credentials not found in environment variables. Will fall back to base64 encoding for images.");
+}
 
 // Paths to deployment files
 const avsDeploymentPath = path.resolve(__dirname, `../../foundry/deployments/zk-hotdog/${chainId}.json`);
@@ -93,6 +98,65 @@ const ecdsaRegistryContract = new ethers.Contract(ecdsaStakeRegistryAddress, ecd
 const avsDirectory = new ethers.Contract(avsDirectoryAddress, avsDirectoryABI.abi, wallet);
 
 /**
+ * Upload an image to Cloudinary using API Key and Secret
+ * @param imageBuffer Buffer containing the image data
+ * @returns Promise resolving to the hosted image URL
+ */
+async function uploadImageToCloudinary(imageBuffer: Buffer): Promise<string> {
+  try {
+    // Required Cloudinary parameters
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      throw new Error('Missing Cloudinary credentials');
+    }
+
+    // Create a timestamp for the signature
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+
+    // Create a unique file name to avoid collisions
+    const fileName = `zkhotdog_${Date.now()}`;
+
+    // For secure uploads with API secret we need to create a signature
+    // The signature is a SHA-1 hash of the upload parameters and the API secret
+    const crypto = require('crypto');
+    const signatureString = `public_id=${fileName}&timestamp=${timestamp}${apiSecret}`;
+    const signature = crypto.createHash('sha1').update(signatureString).digest('hex');
+
+    // Prepare form data for the upload
+    const formData = new FormData();
+    formData.append('file', new Blob([imageBuffer]), 'image.jpg');
+    formData.append('api_key', apiKey);
+    formData.append('timestamp', timestamp);
+    formData.append('public_id', fileName);
+    formData.append('signature', signature);
+
+    // Upload to Cloudinary
+    const response = await axios.post(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+
+    if (response.data && response.data.secure_url) {
+      console.log(`Image uploaded successfully to: ${response.data.secure_url}`);
+      return response.data.secure_url;
+    } else {
+      throw new Error('Failed to get image URL from Cloudinary response');
+    }
+  } catch (error) {
+    console.error('Error uploading image to Cloudinary:', error);
+    throw error;
+  }
+}
+
+/**
  * Analyze image with LLM to check if red dots are located on the ends of measured objects
  * @param imageUrl URL to the image file
  * @returns Promise resolving to true if validation passes, false otherwise
@@ -106,26 +170,42 @@ async function analyzeImageWithLLM(imageUrl: string): Promise<boolean> {
       responseType: 'arraybuffer'
     });
 
-    // Convert image to base64
-    const base64Image = Buffer.from(imageResponse.data).toString('base64');
+    // Try to upload to Cloudinary if credentials are available
+    let imageUrlForLLM = imageUrl;
 
-    // Call LLM API (OpenAI's example here)
+    if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET && process.env.CLOUDINARY_CLOUD_NAME) {
+      try {
+        // Upload to Cloudinary
+        imageUrlForLLM = await uploadImageToCloudinary(Buffer.from(imageResponse.data));
+        console.log(`Image hosted at: ${imageUrlForLLM}`);
+      } catch (uploadError) {
+        console.warn(`Failed to upload image to Cloudinary, falling back to base64: ${uploadError}`);
+        // Fallback to base64 if upload fails
+        imageUrlForLLM = `data:image/jpeg;base64,${Buffer.from(imageResponse.data).toString('base64')}`;
+      }
+    } else {
+      // Fallback to base64 if Cloudinary is not configured
+      console.log("Using base64 encoding for image (Cloudinary not configured)");
+      imageUrlForLLM = `data:image/jpeg;base64,${Buffer.from(imageResponse.data).toString('base64')}`;
+    }
+
+    // Call LLM API with the hosted image URL or base64
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: 'gpt-4-vision-preview',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Are red spheres located on the ends of measured objects in this image? Please answer only "yes" or "no".'
+                text: 'Are red and green spheres located on the ends of measured objects in this image? This is a measurement verification request, please be very accurate. Please answer only "yes" or "no".'
               },
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
+                  url: imageUrlForLLM
                 }
               }
             ]
@@ -145,7 +225,7 @@ async function analyzeImageWithLLM(imageUrl: string): Promise<boolean> {
     const answer = response.data.choices[0].message.content.toLowerCase().trim();
     console.log(`LLM response: ${answer}`);
 
-    return answer === 'yes';
+    return answer.includes('yes');
   } catch (error) {
     console.error('Error analyzing image with LLM:', error);
     return false;
@@ -157,16 +237,16 @@ async function analyzeImageWithLLM(imageUrl: string): Promise<boolean> {
  * @param taskIndex The index of the task
  * @param task The task data
  */
-const signAndRespondToTask = async (taskIndex: number, task: any) => {
+const signAndRespondToTask = async (taskIndex: number, tokenId: number, url: string, taskBlock: number) => {
   try {
-    console.log(`Processing task ${taskIndex} for token ID ${task.tokenId}`);
+    console.log(`Processing task ${taskIndex} for token ID ${tokenId}`);
 
     // Analyze the image
-    const isValid = await analyzeImageWithLLM(task.imageUrl);
+    const isValid = await analyzeImageWithLLM(url);
     console.log(`Verification result: ${isValid ? 'PASSED' : 'FAILED'}`);
 
     // Create message to sign
-    const message = `ZkHotdog Verification Task:${task.tokenId}${task.imageUrl}${isValid ? 'true' : 'false'}`;
+    const message = `ZkHotdog Verification Task:${tokenId}${url}${isValid ? 'true' : 'false'}`;
     const messageHash = ethers.solidityPackedKeccak256(["string"], [message]);
     const messageBytes = ethers.getBytes(messageHash);
 
@@ -177,14 +257,15 @@ const signAndRespondToTask = async (taskIndex: number, task: any) => {
     // Submit response
     const tx = await zkHotdogServiceManager.respondToTask(
       {
-        tokenId: task.tokenId,
-        imageUrl: task.imageUrl,
-        taskCreatedBlock: task.taskCreatedBlock
+        tokenId: tokenId,
+        imageUrl: url,
+        taskCreatedBlock: taskBlock
       },
       taskIndex,
       isValid,
       signature
     );
+    console.log("Responded to task pending");
 
     await tx.wait();
     console.log(`Responded to task ${taskIndex} with result: ${isValid}`);
@@ -212,7 +293,7 @@ const registerOperator = async () => {
   }
 
   const salt = ethers.hexlify(ethers.randomBytes(32));
-  const expiry = Math.floor(Date.now() / 1000) + 3600; // Example expiry, 1 hour from now
+  const expiry = Math.floor(Date.now() / 1000) + 360000; // Example expiry, 1 hour from now
 
   // Define the output structure
   let operatorSignatureWithSaltAndExpiry = {
@@ -257,9 +338,11 @@ const registerOperator = async () => {
 const monitorNewTasks = async () => {
   console.log("Monitoring for new tasks...");
 
-  zkHotdogServiceManager.on("NewTaskCreated", async (taskIndex: number, task: any) => {
-    console.log(`New task detected: Index ${taskIndex}, Token ID ${task.tokenId}`);
-    await signAndRespondToTask(taskIndex, task);
+  let filter = zkHotdogServiceManager.filters.NewTaskCreated();
+
+  zkHotdogServiceManager.on(filter, async (event: any) => {
+    let [taskIndex, [tokenId, url, taskBlock]] = event.args;
+    await signAndRespondToTask(taskIndex, tokenId, url, taskBlock);
   });
 };
 
@@ -278,7 +361,7 @@ const processExistingTasks = async () => {
       try {
         // Get the task hash
         const taskHash = await zkHotdogServiceManager.allTaskHashes(i);
-        
+
         // Only process tasks that haven't been responded to yet
         const hasResponded = (await zkHotdogServiceManager.allTaskResponses(wallet.address, i)).length > 0;
         if (hasResponded) {
@@ -298,7 +381,7 @@ const processExistingTasks = async () => {
         // Extract task data from event - handling different event formats
         let taskData;
         const event = events[0];
-        
+
         // Check if it's EventLog (has args) or Log (decoded manually)
         if ('args' in event && event.args) {
           taskData = event.args.task;
@@ -311,19 +394,13 @@ const processExistingTasks = async () => {
           });
           taskData = parsedLog?.args?.task;
         }
-        
+
         if (!taskData) {
           console.log(`Could not extract task data from event ${i}, skipping...`);
           continue;
         }
 
-        const task = {
-          tokenId: taskData.tokenId,
-          imageUrl: taskData.imageUrl,
-          taskCreatedBlock: taskData.taskCreatedBlock
-        };
-
-        await signAndRespondToTask(i, task);
+        await signAndRespondToTask(i, taskData.tokenId, taskData.imageUrl, taskData.taskCreatedBlock);
       } catch (error) {
         console.error(`Error processing task ${i}:`, error);
         // Continue with next task

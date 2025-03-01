@@ -455,7 +455,7 @@ contract CreateTask is ZkHotdogTaskManagerSetup {
         zkHotdogNft.setServiceManager(zkHotdogDeployment.zkHotdogServiceManager);
         
         // Mint an NFT - this should automatically create a task
-        vm.prank(user.key.addr);
+        vm.prank(address(0xdeadbeef));
         uint256 tokenId = zkHotdogNft.mintWithAttestation(
             TEST_IMAGE_URL,
             TEST_LENGTH,
@@ -466,10 +466,10 @@ contract CreateTask is ZkHotdogTaskManagerSetup {
         );
         
         // Check token was minted
-        assertEq(zkHotdogNft.ownerOf(tokenId), user.key.addr);
+        assertEq(zkHotdogNft.ownerOf(tokenId), address(0xdeadbeef));
         
         // Create a second task to verify manual task creation works too
-        vm.prank(user.key.addr);
+        vm.prank(address(0xdeadbeef));
         IZkHotdogServiceManager.Task memory newTask = sm.createNewTask(tokenId, "https://example.com/different-image.jpg");
 
         // Verify the new task was created with correct parameters

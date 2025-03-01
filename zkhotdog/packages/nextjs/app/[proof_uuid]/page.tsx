@@ -76,11 +76,14 @@ export default function ProofStatusPage() {
     error: mintError,
     isError: isMintError,
     reset: resetMint,
-  } = useWriteContract({
-    onError: error => {
-      console.error("Error in minting transaction:", error);
-    },
-  });
+    data: txHash,
+  } = useWriteContract();
+  // Log transaction hash when available
+  useEffect(() => {
+    if (txHash) {
+      console.log("Transaction submitted successfully:", txHash);
+    }
+  }, [txHash]);
 
   // Function to fetch the proof status from the backend
   const fetchProofStatus = async () => {
@@ -142,7 +145,7 @@ export default function ProofStatusPage() {
       const dx = measurement.end_point.x - measurement.start_point.x;
       const dy = measurement.end_point.y - measurement.start_point.y;
       const dz = measurement.end_point.z - measurement.start_point.z;
-      const lengthInCm = Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz) / 100); // Convert to cm (divide by 100)
+      const lengthInCm = dx * dx + dy * dy + dz * dz; // Convert to cm (divide by 100)
 
       // Create image URL by referencing the backend
       const imageUrl = `${API_BASE_URL}/img/${measurement.id}`;
@@ -193,7 +196,7 @@ export default function ProofStatusPage() {
       });
 
       // Execute the minting transaction
-      mintWithAttestation({
+      const result = mintWithAttestation({
         address: ZK_HOTDOG_CONTRACT_ADDRESS as `0x${string}`,
         abi: zkHotdogAbi,
         functionName: "mintWithAttestation",
@@ -206,6 +209,8 @@ export default function ProofStatusPage() {
           BigInt(index),
         ],
       });
+
+      console.log("Mint transaction initiated:", result);
     } catch (error) {
       console.error("Error preparing mint transaction:", error);
       setMintMessage({
@@ -244,6 +249,7 @@ export default function ProofStatusPage() {
   // Handle mint state changes
   useEffect(() => {
     if (isMintSuccess) {
+      console.log("Mint transaction confirmed:", txHash);
       setMintMessage({
         text: "NFT minted successfully! Redirecting to home...",
         type: "success",
@@ -254,12 +260,13 @@ export default function ProofStatusPage() {
       }, 3000);
       return () => clearTimeout(timer);
     } else if (isMintError && mintError) {
+      console.error("Mint transaction failed:", mintError);
       setMintMessage({
         text: `Mint error: ${mintError.message || "Unknown error occurred"}`,
         type: "error",
       });
     }
-  }, [isMintSuccess, isMintError, mintError, router]);
+  }, [isMintSuccess, isMintError, mintError, router, txHash]);
 
   if (isLoading) {
     return (
@@ -369,7 +376,7 @@ export default function ProofStatusPage() {
                 const dy = measurement.end_point.y - measurement.start_point.y;
                 const dz = measurement.end_point.z - measurement.start_point.z;
                 const lengthInMm = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                const lengthInCm = lengthInMm / 100; // Divide by 100 to convert to cm
+                const lengthInCm = lengthInMm / 1000; // Divide by 100 to convert to cm
 
                 return <p className="text-md font-bold mt-2 dark:text-white">Length: {lengthInCm.toFixed(2)} cm</p>;
               })()}

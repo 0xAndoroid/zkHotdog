@@ -92,8 +92,7 @@ contract ZkHotdogServiceManager is
         uint256 tokenId,
         string memory imageUrl
     ) external returns (Task memory) {
-        // The ownerOf call will revert if token doesn't exist
-        zkHotdogNft.ownerOf(tokenId);
+        // zkHotdogNft.ownerOf(tokenId);
         require(!zkHotdogNft.isVerified(tokenId), "Token already verified");
 
         // Create a new task

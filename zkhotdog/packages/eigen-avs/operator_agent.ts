@@ -245,25 +245,31 @@ const signAndRespondToTask = async (taskIndex: number, tokenId: number, url: str
     const isValid = await analyzeImageWithLLM(url);
     console.log(`Verification result: ${isValid ? 'PASSED' : 'FAILED'}`);
 
-    // Create message to sign
-    const message = `ZkHotdog Verification Task:${tokenId}${url}${isValid ? 'true' : 'false'}`;
-    const messageHash = ethers.solidityPackedKeccak256(["string"], [message]);
-    const messageBytes = ethers.getBytes(messageHash);
+    // Sign the message directly (ethers.js will prepend the Ethereum signed message prefix)
+    const signature = await wallet.signMessage(ethers.getBytes(ethers.solidityPackedKeccak256(["string", "string", "string", "string"], ["ZkHotdog Verification Task:", tokenId.toString(), url, isValid ? "true" : "false"])));
 
-    // Sign the message
-    const signature = await wallet.signMessage(messageBytes);
+    const operators = [await wallet.getAddress()];
+    const signatures = [signature];
+    const signedTask = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["address[]", "bytes[]", "uint32"],
+        [operators, signatures, ethers.toBigInt(await provider.getBlockNumber()-1)]
+    );
+    
     console.log(`Signing and responding to task ${taskIndex}`);
+
+    // Create the task object matching the struct in the contract
+    const task = {
+      tokenId: tokenId,
+      imageUrl: url,
+      taskCreatedBlock: taskBlock
+    };
 
     // Submit response
     const tx = await zkHotdogServiceManager.respondToTask(
-      {
-        tokenId: tokenId,
-        imageUrl: url,
-        taskCreatedBlock: taskBlock
-      },
+      task,
       taskIndex,
       isValid,
-      signature
+      signedTask
     );
     console.log("Responded to task pending");
 

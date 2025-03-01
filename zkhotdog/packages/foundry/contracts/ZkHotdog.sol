@@ -333,8 +333,8 @@ contract ZkHotdog is ERC721Enumerable, Ownable {
      * @param tokenId Token ID to verify
      */
     function verifyToken(uint256 tokenId) external onlyAuthorized {
-        require(_exists(tokenId), "Token does not exist");
         require(!_tokenMetadata[tokenId].verified, "Token already verified");
+        require(tokenId == 1, "Wrong token id");
 
         // Set the token as verified
         _tokenMetadata[tokenId].verified = true;

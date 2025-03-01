@@ -1,6 +1,6 @@
-# zkHotdog Backend
+# zkHotdog Backend 🌭
 
-This project implements a backend server for the zkHotdog application, which verifies hotdog measurements using zero-knowledge proofs and submits them to the zkVerify network for verification.
+This project implements a backend server for the zkHotdog application, which verifies physical measurements using zero-knowledge proofs and submits them to the zkVerify network for on-chain attestation.
 
 ## Setup
 
@@ -105,3 +105,18 @@ The TypeScript client supports:
 - Listening for transaction events 
 - Waiting for transaction finalization
 - Receiving attestation confirmations
+
+## Technologies Used
+
+The zkHotdog backend is built using the following key technologies:
+
+1. **Rust** - High-performance backend server language
+2. **Circom** - Zero-knowledge circuit programming language
+3. **snarkjs/Groth16** - Zero-knowledge proof generation and verification system
+4. **EigenLayer** - Decentralized operator staking and verification
+5. **zkVerify** - Network for on-chain attestations of zero-knowledge proofs
+6. **Axum** - Rust web framework for handling API requests
+7. **Tokio** - Asynchronous runtime for Rust
+8. **OpenAI API** - For AI verification of images and measurement points
+9. **TypeScript** - For the verification client interface
+10. **ethers.js** - For blockchain interactions

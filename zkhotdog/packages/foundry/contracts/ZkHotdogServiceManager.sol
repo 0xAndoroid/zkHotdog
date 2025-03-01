@@ -161,11 +161,7 @@ contract ZkHotdogServiceManager is
 
         // If verification was successful, update the NFT contract
         if (result) {
-            try zkHotdogNft.verifyToken(task.tokenId) {
-                // Successfully verified the token
-            } catch {
-                // Verification failed in the NFT contract
-            }
+            zkHotdogNft.verifyToken(task.tokenId);
         }
 
         // Emit event

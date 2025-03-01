@@ -197,6 +197,7 @@ contract DeployAll is Script {
         // Set service manager in ZkHotdog contract
         log("Setting service manager in ZkHotdog NFT...");
         zkHotdog.setServiceManager(zkHotdogDeployment.zkHotdogServiceManager);
+        ZkHotdogServiceManager(zkHotdogDeployment.zkHotdogServiceManager).updateZkHotdogNft(address(zkHotdog));
         log("Service manager set successfully");
 
         // Save deployment data to JSON files

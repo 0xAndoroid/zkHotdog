@@ -1,5 +1,14 @@
 # zkHotdog Project Guidelines
 
+## Environment Variables
+- **NextJS**:
+  - Copy `.env.example` to `.env.local` in the `zkhotdog/packages/nextjs` directory
+  - Update the values in `.env.local` with your configuration:
+    - `NEXT_PUBLIC_ZK_HOTDOG_CONTRACT_ADDRESS`: Address of the deployed ZkHotdog contract
+    - `NEXT_PUBLIC_API_BASE_URL`: Base URL of the backend API (default: `http://localhost:3000`)
+    - `NEXT_PUBLIC_ALCHEMY_API_KEY`: Your Alchemy API key for Web3 interactions
+    - `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID`: Your WalletConnect project ID
+
 ## Build & Run Commands
 - **Backend**:
   - Build: `cargo build`

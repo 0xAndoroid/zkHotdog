@@ -349,7 +349,7 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
     
     private func sendMeasurementToServer(imageData: Data, startPoint: [String: Float], endPoint: [String: Float]) {
         // Server URL pointing to our Rust Axum server
-        guard let url = URL(string: "http://localhost:3000/measurements") else {
+        guard let url = URL(string: "http://172.20.10.2:3001/measurements") else {
             self.measurementLabel.text = "Invalid server URL"
             return
         }
@@ -417,7 +417,7 @@ class MeasurementViewController: UIViewController, ARSCNViewDelegate {
                         
                         // Create the frontend URL with the measurement ID
                         // Use your actual frontend URL here
-                        let frontendUrl = "http://localhost:3001/\(measurementId)"
+                        let frontendUrl = "http://172.20.10.2:3000/\(measurementId)"
                         
                         if let redirectURL = URL(string: frontendUrl) {
                             // Show success message with the URL

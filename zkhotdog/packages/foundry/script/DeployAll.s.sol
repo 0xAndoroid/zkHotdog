@@ -199,12 +199,48 @@ contract DeployAll is Script {
         zkHotdog.setServiceManager(zkHotdogDeployment.zkHotdogServiceManager);
         log("Service manager set successfully");
 
+        // Save deployment data to JSON files
+        string memory zkHotdogDeploymentPath = string.concat("deployments/zk-hotdog/", vm.toString(block.chainid), ".json");
+        string memory coreDeploymentPath = string.concat("deployments/core/", vm.toString(block.chainid), ".json");
+        
+        // Create directories without checking if they exist
+        // The vm.createDir function will not fail if the directory already exists
+        try vm.createDir("deployments/zk-hotdog", true) {
+            log("Created deployments/zk-hotdog directory");
+        } catch {
+            log("deployments/zk-hotdog directory already exists");
+        }
+        
+        try vm.createDir("deployments/core", true) {
+            log("Created deployments/core directory");
+        } catch {
+            log("deployments/core directory already exists");
+        }
+        
+        // Create ZkHotdog deployment JSON
+        string memory zkHotdogJson = vm.serializeAddress("zkHotdogDeployment", "zkHotdogServiceManager", zkHotdogDeployment.zkHotdogServiceManager);
+        zkHotdogJson = vm.serializeAddress("zkHotdogDeployment", "stakeRegistry", zkHotdogDeployment.stakeRegistry);
+        zkHotdogJson = vm.serializeAddress("zkHotdogDeployment", "strategy", zkHotdogDeployment.strategy);
+        zkHotdogJson = vm.serializeAddress("zkHotdogDeployment", "token", zkHotdogDeployment.token);
+        zkHotdogJson = vm.serializeAddress("zkHotdogDeployment", "zkHotdogNFT", address(zkHotdog));
+        zkHotdogJson = vm.serializeAddress("zkHotdogDeployment", "zkVerify", zkVerifyAddress);
+        
+        // Create Core deployment JSON
+        string memory coreJson = vm.serializeAddress("coreDeployment", "avsDirectory", coreDeployment.avsDirectory);
+        coreJson = vm.serializeAddress("coreDeployment", "delegation", coreDeployment.delegationManager);
+        coreJson = vm.serializeAddress("coreDeployment", "rewardsCoordinator", coreDeployment.rewardsCoordinator);
+        coreJson = vm.serializeAddress("coreDeployment", "strategyFactory", coreDeployment.strategyFactory);
+        
+        // Write JSON files
+        vm.writeJson(zkHotdogJson, zkHotdogDeploymentPath);
+        vm.writeJson(coreJson, coreDeploymentPath);
+        
         // Deployment Summary
         log("\n=== DEPLOYMENT SUMMARY ===");
         log(string.concat("ZkVerify:                ", vm.toString(zkVerifyAddress)));
         log(string.concat("ZkHotdog NFT:            ", vm.toString(address(zkHotdog))));
         log(string.concat("ZkHotdogServiceManager:  ", vm.toString(zkHotdogDeployment.zkHotdogServiceManager)));
-        log(string.concat("EigenLayer AVS Directory:", vm.toString(coreDeployment.avsDirectory)));
+        log(string.concat("AVS Directory:           ", vm.toString(coreDeployment.avsDirectory)));
         log(string.concat("StakeRegistry:           ", vm.toString(zkHotdogDeployment.stakeRegistry)));
         log(string.concat("RewardsCoordinator:      ", vm.toString(coreDeployment.rewardsCoordinator)));
         log(string.concat("DelegationManager:       ", vm.toString(coreDeployment.delegationManager)));
@@ -212,7 +248,14 @@ contract DeployAll is Script {
         log(string.concat("TokenStrategy:           ", vm.toString(address(strategy))));
         log(string.concat("StrategyFactory:         ", vm.toString(coreDeployment.strategyFactory)));
         log("=========================\n");
+        
+        log("Deployment data saved to:");
+        log(string.concat(" - ", zkHotdogDeploymentPath));
+        log(string.concat(" - ", coreDeploymentPath));
 
         vm.stopBroadcast();
+        
+        // Deployment is complete - anvil is assumed to be running separately
+        log("Deployment completed successfully.");
     }
 }

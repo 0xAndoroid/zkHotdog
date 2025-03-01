@@ -48,9 +48,10 @@ const zkHotdogAbi = [
   },
 ];
 
-// Address of the deployed ZkHotdog contract
-// This should be replaced with the actual deployed contract address
-const ZK_HOTDOG_CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+// Get contract address from environment variable
+const ZK_HOTDOG_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_ZK_HOTDOG_CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000";
+// Get API base URL from environment variable
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 export default function ProofStatusPage() {
   const params = useParams();
@@ -77,7 +78,7 @@ export default function ProofStatusPage() {
   const fetchProofStatus = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`http://localhost:3000/status/${proofUuid}`);
+      const response = await fetch(`${API_BASE_URL}/status/${proofUuid}`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -108,7 +109,7 @@ export default function ProofStatusPage() {
     const lengthInCm = Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz) / 10); // Convert mm to cm
 
     // Create image URL by referencing the backend
-    const imageUrl = `http://localhost:3000/img/${measurement.id}`;
+    const imageUrl = `${API_BASE_URL}/img/${measurement.id}`;
 
     // Get attestation data
     if (!measurement.attestation) {
@@ -205,7 +206,7 @@ export default function ProofStatusPage() {
         {/* Display the hotdog image */}
         <div className="w-full h-48 bg-gray-200 relative">
           <Image 
-            src={`http://localhost:3000/img/${measurement.id}`} 
+            src={`${API_BASE_URL}/img/${measurement.id}`} 
             alt="Hotdog measurement"
             fill
             style={{ objectFit: 'cover' }}

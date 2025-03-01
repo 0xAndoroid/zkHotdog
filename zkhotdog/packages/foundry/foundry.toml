@@ -4,6 +4,8 @@ out = 'out'
 libs = ['lib']
 fs_permissions = [{ access = "read-write", path = "./" }]
 via-ir = true
+optimizer = true
+optimizer_runs = 200
 
 remappings = [
   "@eigenlayer/=lib/eigenlayer-middleware/lib/eigenlayer-contracts/src/",
